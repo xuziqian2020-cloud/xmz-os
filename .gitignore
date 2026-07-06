@@ -1,0 +1,23 @@
+# dependencies
+node_modules/
+
+# Next.js build output
+.next/
+out/
+
+# local environment
+.env
+.env*.local
+
+# Netlify local state
+.netlify/
+
+# logs
+*.log
+logs-dev-*.txt
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
