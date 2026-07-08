@@ -21,6 +21,7 @@ import {
   TerminalSquare,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { PlanStatusSelect } from "@/components/plans/plan-status-select"
 import type { SmartReminder, WorkPlan } from "@/lib/database.types"
 
 type PlanLike = Partial<WorkPlan> & {
@@ -62,8 +63,8 @@ const demoTodayPlans: PlanLike[] = [
     title: "重构登录页与演示环境进入链路",
     type: "bug",
     priority: "high",
-    status: "处理中",
-    progress: 64,
+    status: "待分析",
+    progress: 0,
     due_date: "今天",
     description: "先保证本地和正式环境都能稳定进入工作台。",
   },
@@ -430,25 +431,22 @@ function PlanRow({ plan }: { plan: PlanLike }) {
   const progress = normalizeProgress(plan.progress)
 
   return (
-    <Link
-      href={`/plans/${plan.id}`}
-      className="group grid gap-4 rounded-lg border border-border bg-card p-4 transition-colors hover:border-[hsl(var(--accent)/0.45)] hover:bg-secondary/40 lg:grid-cols-[minmax(0,1fr)_170px]"
-    >
+    <div className="group grid gap-4 rounded-lg border border-border bg-card p-4 transition-colors hover:border-[hsl(var(--accent)/0.45)] hover:bg-secondary/40 lg:grid-cols-[minmax(0,1fr)_190px]">
       <div className="min-w-0">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className={cn("rounded-md px-2 py-1 text-[11px] font-medium", type.className)}>
-            {type.label}
-          </span>
-          <span className={cn("rounded-md px-2 py-1 text-[11px] font-medium", priority.className)}>
-            {priority.label}
-          </span>
-          {plan.status && (
-            <span className="rounded-md border border-border bg-background px-2 py-1 text-[11px] text-muted-foreground">
-              {plan.status}
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className={cn("rounded-md px-2 py-1 text-[11px] font-medium", type.className)}>
+              {type.label}
             </span>
-          )}
+            <span className={cn("rounded-md px-2 py-1 text-[11px] font-medium", priority.className)}>
+              {priority.label}
+            </span>
+          </div>
+          <PlanStatusSelect planId={plan.id} type={plan.type} status={plan.status} progress={plan.progress} />
         </div>
-        <h3 className="mt-3 truncate text-sm font-semibold text-foreground">{plan.title}</h3>
+        <Link href={`/plans/${plan.id}`} className="mt-3 block truncate text-sm font-semibold text-foreground hover:text-[hsl(var(--accent))]">
+          {plan.title}
+        </Link>
         {plan.description && (
           <p className="mt-1 line-clamp-2 text-sm leading-6 text-muted-foreground">{plan.description}</p>
         )}
@@ -465,7 +463,7 @@ function PlanRow({ plan }: { plan: PlanLike }) {
           />
         </div>
       </div>
-    </Link>
+    </div>
   )
 }
 
@@ -629,6 +627,22 @@ function getReminderMeta(type: ReminderLike["reminder_type"]) {
     return {
       label: "计划逾期",
       icon: AlertTriangle,
+      className: "bg-amber-50 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300",
+    }
+  }
+
+  if (type === "important_plan") {
+    return {
+      label: "重要计划",
+      icon: AlertTriangle,
+      className: "bg-red-50 text-red-700 dark:bg-red-950/50 dark:text-red-300",
+    }
+  }
+
+  if (type === "plan_due_soon") {
+    return {
+      label: "即将到期",
+      icon: Clock3,
       className: "bg-amber-50 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300",
     }
   }

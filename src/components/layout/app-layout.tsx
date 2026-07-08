@@ -5,6 +5,7 @@ import { useEffect, useState } from "react"
 import { usePathname, useRouter } from "next/navigation"
 import { Sidebar } from "@/components/layout/sidebar"
 import { Header } from "@/components/layout/header"
+import { ADMIN_REMEMBER_FLAG } from "@/lib/auth/local-admin"
 import { createClient } from "@/lib/supabase/client"
 import { isDemoMode } from "@/lib/supabase/demo"
 
@@ -27,6 +28,14 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     setMounted(true)
 
     async function checkSession() {
+      const localShortcutAuthed = window.localStorage.getItem(ADMIN_REMEMBER_FLAG) === "1"
+      if (localShortcutAuthed) {
+        setIsAuthed(true)
+        setConfigError(false)
+        setSessionChecked(true)
+        return
+      }
+
       if (demoMode) {
         setIsAuthed(false)
         setConfigError(true)
@@ -64,7 +73,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     try {
       const supabase = createClient()
       const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: any, session: any) => {
-        setIsAuthed(!!session)
+        setIsAuthed(!!session || window.localStorage.getItem(ADMIN_REMEMBER_FLAG) === "1")
       })
       return () => subscription.unsubscribe()
     } catch {

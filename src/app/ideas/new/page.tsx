@@ -1,11 +1,13 @@
 "use client"
 import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 
 const categories = ["功能想法", "优化想法", "AI想法", "业务想法", "技术想法"]
 
 export default function NewIdeaPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const presetProjectId = searchParams.get("project_id") || ""
   const [title, setTitle] = useState("")
   const [content, setContent] = useState("")
   const [category, setCategory] = useState("功能想法")
@@ -17,9 +19,9 @@ export default function NewIdeaPage() {
     const res = await fetch("/api/ideas", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title: title.trim(), content: content.trim() || null, category }),
+      body: JSON.stringify({ title: title.trim(), content: content.trim() || null, category, project_id: presetProjectId || null }),
     })
-    if (res.ok) { router.push("/ideas"); router.refresh() }
+    if (res.ok) { router.push(presetProjectId ? `/projects/${presetProjectId}/ideas` : "/ideas"); router.refresh() }
     setLoading(false)
   }
 

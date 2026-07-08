@@ -1,4 +1,5 @@
-import { PlaceholderPage } from "@/components/common/placeholder-page"
-export default function ProjectReportsPage() {
-  return <PlaceholderPage title="项目报表" description="此模块将在阶段 14 实现" />
+import { ProjectModuleView } from "@/components/project/project-module-view"
+
+export default function ProjectReportsPage({ params }: { params: { id: string } }) {
+  return <ProjectModuleView projectId={params.id} moduleKey="reports" />
 }

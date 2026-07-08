@@ -10,7 +10,7 @@ export type WorkPlanPriority = "high" | "medium" | "low"
 export type RequirementStatus =
   | "待确认" | "待开发" | "开发中" | "待测试" | "已完成" | "已上线" | "已取消"
 export type BugStatus =
-  | "待分析" | "处理中" | "已修复" | "无法复现" | "已归档"
+  | "待分析" | "无法重现" | "已修复"
 export type CustomWorkStatus =
   | "未开始" | "进行中" | "已完成" | "已暂停" | "已取消"
 export type WorkPlanStatus = RequirementStatus | BugStatus | CustomWorkStatus
@@ -23,7 +23,7 @@ export type IdeaStatus =
   | "未整理" | "已采纳" | "已放弃" | "已转计划" | "已转知识库"
 
 export type AIProviderType = "openai" | "deepseek" | "claude" | "qwen" | "custom"
-export type ReminderType = "bug_severe" | "plan_overdue" | "weekly_candidate" | "custom"
+export type ReminderType = "bug_severe" | "plan_overdue" | "plan_due_soon" | "important_plan" | "weekly_candidate" | "custom"
 
 export type ReportType =
   | "daily" | "weekly" | "monthly" | "yearly" | "project_summary" | "bug_review"

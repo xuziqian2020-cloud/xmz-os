@@ -8,12 +8,13 @@ export default function NewPlanPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const presetType = searchParams.get("type") || "requirement"
+  const presetProjectId = searchParams.get("project_id") || ""
 
   const [type, setType] = useState(presetType)
   const [title, setTitle] = useState("")
   const [description, setDescription] = useState("")
   const [priority, setPriority] = useState("medium")
-  const [projectId, setProjectId] = useState("")
+  const [projectId, setProjectId] = useState(presetProjectId)
   const [dueDate, setDueDate] = useState("")
   const [bugSeverity, setBugSeverity] = useState("medium")
   const [sourcePerson, setSourcePerson] = useState("")
@@ -58,7 +59,7 @@ export default function NewPlanPage() {
     })
     if (!res.ok) { setError((await res.json()).error || "创建失败"); setLoading(false); return }
     const plan = await res.json()
-    router.push(`/plans/${plan.id}`)
+    router.push(presetProjectId ? `/projects/${presetProjectId}/${type === "bug" ? "bugs" : "plans"}` : `/plans/${plan.id}`)
     router.refresh()
   }
 

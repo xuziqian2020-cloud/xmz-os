@@ -1,9 +1,11 @@
 "use client"
 import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 
 export default function NewDiagramPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const presetProjectId = searchParams.get("project_id") || ""
   const [title, setTitle] = useState("")
   const [description, setDescription] = useState("")
   const [mermaidContent, setMermaidContent] = useState("graph TD\n  A[开始] --> B[处理]\n  B --> C[结束]")
@@ -16,9 +18,9 @@ export default function NewDiagramPage() {
     const res = await fetch("/api/diagrams", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title: title.trim(), description, mermaid_content: mermaidContent, process_type: processType || null }),
+      body: JSON.stringify({ title: title.trim(), description, mermaid_content: mermaidContent, process_type: processType || null, project_id: presetProjectId || null }),
     })
-    if (res.ok) { const d = await res.json(); router.push(`/process/${d.id}`); router.refresh() }
+    if (res.ok) { const d = await res.json(); router.push(presetProjectId ? `/projects/${presetProjectId}/process` : `/process/${d.id}`); router.refresh() }
     setLoading(false)
   }
 

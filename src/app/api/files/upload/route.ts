@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 
+export const runtime = "nodejs"
+
 export async function POST(request: Request) {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -9,19 +11,29 @@ export async function POST(request: Request) {
   const formData = await request.formData()
   const file = formData.get("file") as File
   if (!file) return NextResponse.json({ error: "未选择文件" }, { status: 400 })
+  const projectId = formData.get("project_id")?.toString() || null
 
   const bytes = await file.arrayBuffer()
   const buffer = Buffer.from(bytes)
   const fileName = `${user.id}/${Date.now()}-${file.name}`
+  const fileType = file.type.split("/")[1] || file.name.split(".").pop() || file.type || "file"
 
-  const { error: uploadError } = await supabase.storage.from("user-files").upload(fileName, buffer, { contentType: file.type, upsert: true })
-  if (uploadError) return NextResponse.json({ error: uploadError.message }, { status: 500 })
+  let storagePath = ""
+  const { error: uploadError } = await supabase.storage.from("user-files").upload(fileName, buffer, { contentType: file.type || "application/octet-stream", upsert: true })
 
-  const { data: publicUrl } = supabase.storage.from("user-files").getPublicUrl(fileName)
+  if (!uploadError) {
+    const { data: publicUrl } = supabase.storage.from("user-files").getPublicUrl(fileName)
+    storagePath = publicUrl.publicUrl
+  } else {
+    if (file.size > 5 * 1024 * 1024) {
+      return NextResponse.json({ error: "文件上传失败，请确认 Supabase Storage 已创建 user-files bucket。超过 5MB 的文件不能使用数据库兜底保存。" }, { status: 500 })
+    }
+    storagePath = `data:${file.type || "application/octet-stream"};base64,${buffer.toString("base64")}`
+  }
 
   const { data, error } = await supabase.from("files").insert({
-    user_id: user.id, file_name: file.name, file_type: file.type.split("/")[1] || file.type,
-    file_size: file.size, storage_path: publicUrl.publicUrl,
+    user_id: user.id, project_id: projectId, file_name: file.name, file_type: fileType,
+    file_size: file.size, storage_path: storagePath,
   }).select().single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

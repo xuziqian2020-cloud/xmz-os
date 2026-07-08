@@ -3,12 +3,7 @@
 
 import { useState, useEffect } from "react"
 import { useRouter, useParams } from "next/navigation"
-
-const statusOptions: Record<string, string[]> = {
-  requirement: ["待确认", "待开发", "开发中", "待测试", "已完成", "已上线", "已取消"],
-  bug: ["待分析", "处理中", "已修复", "无法复现", "已归档"],
-  custom: ["未开始", "进行中", "已完成", "已暂停", "已取消"],
-}
+import { getAllowedStatuses, normalizeStatusForType } from "@/lib/work-plans/status-rules"
 
 export default function EditPlanPage() {
   const params = useParams(); const id = params.id as string
@@ -27,6 +22,13 @@ export default function EditPlanPage() {
       setStatus(d.status || ""); setProgress(d.progress || 0)
     }).finally(() => setPageLoading(false))
   }, [id])
+
+  useEffect(() => {
+    if (!plan) return
+    const next = normalizeStatusForType({ type: plan.type, status, progress })
+    if (next.progress !== progress) setProgress(next.progress)
+    if (next.status !== status) setStatus(next.status)
+  }, [plan, status, progress])
 
   const handleSubmit = async () => {
     setLoading(true)
@@ -51,11 +53,12 @@ export default function EditPlanPage() {
         </div>
         <div><label className="mb-1.5 block text-xs font-medium text-muted-foreground">状态</label>
           <select value={status} onChange={e => setStatus(e.target.value)} className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary/30 focus:ring-1 focus:ring-primary/20">
-            {(statusOptions[plan.type] || []).map(s => <option key={s} value={s}>{s}</option>)}
+            {getAllowedStatuses(plan.type).map(s => <option key={s} value={s}>{s}</option>)}
           </select>
         </div>
         <div><label className="mb-1.5 block text-xs font-medium text-muted-foreground">进度 ({progress}%)</label>
-          <input type="range" min="0" max="100" value={progress} onChange={e => setProgress(parseInt(e.target.value))} className="w-full" />
+          <input type="range" min="0" max="100" value={progress} onChange={e => setProgress(parseInt(e.target.value))} disabled={plan.type === "bug"} className="w-full disabled:opacity-45" />
+          {plan.type === "bug" && <p className="mt-1 text-xs text-muted-foreground">Bug 进度由状态自动决定：待分析/无法重现为 0，已修复为 100。</p>}
         </div>
         <div><label className="mb-1.5 block text-xs font-medium text-muted-foreground">描述</label>
           <textarea value={description} onChange={e => setDescription(e.target.value)} rows={4} className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary/30 focus:ring-1 focus:ring-primary/20 resize-none" />

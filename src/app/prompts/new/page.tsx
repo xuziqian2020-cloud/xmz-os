@@ -1,17 +1,19 @@
 "use client"
 import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 
 const LOCAL_PROMPTS_KEY = "xmz-os-local-prompts"
 
 export default function NewPromptPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const presetProjectId = searchParams.get("project_id") || ""
   const [title, setTitle] = useState("")
   const [content, setContent] = useState("")
   const [scene, setScene] = useState("")
   const [modelScope, setModelScope] = useState("")
   const [tags, setTags] = useState("")
-  const [projectId, setProjectId] = useState("")
+  const [projectId, setProjectId] = useState(presetProjectId)
   const [projects, setProjects] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
@@ -35,7 +37,7 @@ export default function NewPromptPage() {
         tags: tags ? tags.split(",").map(s => s.trim()).filter(Boolean) : null,
       }),
     })
-    if (res.ok) { router.push("/prompts"); router.refresh() }
+    if (res.ok) { router.push(presetProjectId ? `/projects/${presetProjectId}/prompts` : "/prompts"); router.refresh() }
     else {
       const err = await res.json()
       saveLocalPrompt({
@@ -51,7 +53,7 @@ export default function NewPromptPage() {
       })
       setError(`${err.error || "后端保存失败"}；已先保存到浏览器本地，正式上线请补齐 Supabase 表。`)
       setTimeout(() => {
-        router.push("/prompts")
+        router.push(presetProjectId ? `/projects/${presetProjectId}/prompts` : "/prompts")
         router.refresh()
       }, 900)
       setLoading(false)

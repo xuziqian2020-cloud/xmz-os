@@ -6,13 +6,14 @@ export default function NewKnowledgePage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const presetCategory = searchParams.get("category") || ""
+  const presetProjectId = searchParams.get("project_id") || ""
   const fromExperience = presetCategory === "经验库"
   const [title, setTitle] = useState("")
   const [content, setContent] = useState("")
   const [category, setCategory] = useState(presetCategory)
   const [tags, setTags] = useState("")
   const [source, setSource] = useState("")
-  const [projectId, setProjectId] = useState("")
+  const [projectId, setProjectId] = useState(presetProjectId)
   const [projects, setProjects] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
@@ -44,7 +45,7 @@ export default function NewKnowledgePage() {
     })
     if (!res.ok) { setError((await res.json()).error || "创建失败"); setLoading(false); return }
     const doc = await res.json()
-    router.push(fromExperience ? "/experiences" : `/knowledge/${doc.id}`)
+    router.push(presetProjectId ? `/projects/${presetProjectId}/${fromExperience ? "experiences" : "knowledge"}` : fromExperience ? "/experiences" : `/knowledge/${doc.id}`)
     router.refresh()
   }
 

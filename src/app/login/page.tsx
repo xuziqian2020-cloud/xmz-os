@@ -51,13 +51,13 @@ export default function LoginPage() {
         const data = await res.json()
 
         if (!res.ok || !data.ok) {
-          setError(data.error || "管理员免密登录失败，请检查 Supabase 设置。")
+          setError(data.error || "快捷登录失败，请检查 Supabase 设置。")
           return
         }
 
         window.localStorage.setItem(ADMIN_REMEMBER_FLAG, "1")
         window.localStorage.removeItem(REMEMBER_CREDENTIALS_KEY)
-        setNotice("管理员免密登录成功，正在进入工作台。")
+        setNotice("徐小美免密登录成功，正在进入工作台。")
         router.push("/dashboard")
         router.refresh()
         return
@@ -181,13 +181,13 @@ export default function LoginPage() {
               <label className="block">
                 <span className="mb-2 flex items-center gap-2 text-sm font-medium text-foreground">
                   <Mail className="h-4 w-4 text-muted-foreground" />
-                  邮箱或管理员账号
+                  邮箱账号
                 </span>
                 <input
                   type="text"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="name@example.com 或 admin"
+                  placeholder="name@example.com"
                   autoComplete="username"
                   className="h-11 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none transition-colors placeholder:text-muted-foreground/55 focus:border-accent focus:ring-2 focus:ring-accent/18"
                 />
@@ -202,7 +202,7 @@ export default function LoginPage() {
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder={isAdminLogin ? "admin 可不填密码" : "至少 6 位密码"}
+                  placeholder={isAdminLogin ? "徐小美专用入口" : "至少 6 位密码"}
                   autoComplete="current-password"
                   disabled={isAdminLogin}
                   className="h-11 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none transition-colors placeholder:text-muted-foreground/55 focus:border-accent focus:ring-2 focus:ring-accent/18"
@@ -212,7 +212,7 @@ export default function LoginPage() {
               <label className="flex items-center justify-between gap-3 rounded-lg border border-border bg-secondary/40 px-3 py-2.5 text-sm">
                 <span>
                   <span className="block font-medium text-foreground">记住密码</span>
-                  <span className="mt-0.5 block text-xs text-muted-foreground">仅保存在当前浏览器，admin 模式不会保存密码。</span>
+                  <span className="mt-0.5 block text-xs text-muted-foreground">仅保存在当前浏览器，快捷入口不会保存密码。</span>
                 </span>
                 <input
                   type="checkbox"
@@ -241,7 +241,7 @@ export default function LoginPage() {
                 disabled={!canSubmit}
                 className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-foreground px-4 text-sm font-semibold text-background shadow-sm transition-all hover:translate-y-[-1px] hover:opacity-95 active:translate-y-0 disabled:pointer-events-none disabled:opacity-45"
               >
-                {loading ? "正在处理" : isAdminLogin ? "管理员免密登录" : demoMode ? "进入演示工作台" : "登录或首次注册"}
+                {loading ? "正在处理" : isAdminLogin ? "徐小美免密登录" : demoMode ? "进入演示工作台" : "登录或首次注册"}
                 <ArrowRight className="h-4 w-4" />
               </button>
             </form>
@@ -258,7 +258,7 @@ export default function LoginPage() {
 
             <div className="mt-7 border-t border-border pt-5">
               <p className="text-xs leading-5 text-muted-foreground">
-                首次登录会自动注册。再次登录时，如果邮箱已存在，系统只接受匹配的密码。输入 admin 可进入管理员免密模式。
+                首次登录会自动注册。再次登录时，如果邮箱已存在，系统只接受匹配的密码。
               </p>
             </div>
           </div>

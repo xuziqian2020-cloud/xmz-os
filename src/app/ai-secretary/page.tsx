@@ -1,5 +1,12 @@
 // 小美 AI 研发秘书独立页面
-const typeLabels: Record<string, string> = { bug_severe: "严重Bug", plan_overdue: "逾期计划", weekly_candidate: "周报候选", custom: "提醒" }
+const typeLabels: Record<string, string> = {
+  bug_severe: "严重Bug",
+  plan_overdue: "逾期计划",
+  plan_due_soon: "即将到期",
+  important_plan: "重要计划",
+  weekly_candidate: "周报候选",
+  custom: "提醒",
+}
 
 export default async function AISecretaryPage() {
   let reminders: any[] = []
@@ -12,9 +19,9 @@ export default async function AISecretaryPage() {
     <div className="space-y-6">
       <div><h1 className="text-lg font-semibold">小美 · AI 研发秘书</h1><p className="mt-1 text-sm text-muted-foreground">智能管理提醒，帮助你保持研发节奏</p></div>
       <div className="grid gap-4 sm:grid-cols-3">
-        {["bug_severe", "plan_overdue", "weekly_candidate"].map(type => {
+        {["important_plan", "plan_due_soon", "bug_severe"].map(type => {
           const count = reminders.filter(r => r.reminder_type === type).length
-          const icons: Record<string, string> = { bug_severe: "🔴", plan_overdue: "⚠️", weekly_candidate: "📝" }
+          const icons: Record<string, string> = { important_plan: "⭐", plan_due_soon: "⏱️", bug_severe: "🔴", plan_overdue: "⚠️", weekly_candidate: "📝" }
           return <div key={type} className="rounded-lg border border-border bg-card p-4 text-center">
             <span className="text-2xl">{icons[type] || "📌"}</span>
             <p className="mt-1 text-2xl font-semibold">{count}</p>
@@ -31,7 +38,7 @@ export default async function AISecretaryPage() {
       ) : (
         <div className="space-y-2">{reminders.map(r => (
           <div key={r.id} className="flex items-start gap-3 rounded-lg border border-border bg-card p-4">
-            <span className="mt-0.5 text-xs">{r.reminder_type === "bug_severe" ? "🔴" : r.reminder_type === "plan_overdue" ? "⚠️" : "📝"}</span>
+            <span className="mt-0.5 text-xs">{r.reminder_type === "bug_severe" ? "🔴" : r.reminder_type === "plan_overdue" ? "⚠️" : r.reminder_type === "important_plan" ? "⭐" : r.reminder_type === "plan_due_soon" ? "⏱️" : "📝"}</span>
             <div className="flex-1">
               <p className="text-sm font-medium">{r.title}</p>
               {r.description && <p className="mt-1 text-sm text-muted-foreground">{r.description}</p>}

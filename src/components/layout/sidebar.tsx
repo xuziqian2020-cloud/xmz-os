@@ -20,9 +20,9 @@ export function Sidebar() {
     setAdminMode(window.localStorage.getItem(ADMIN_REMEMBER_FLAG) === "1")
   }, [])
 
-  const envTitle = adminMode ? "管理员模式" : demoMode ? "演示环境" : "真实数据"
+  const envTitle = adminMode ? "徐小美模式" : demoMode ? "演示环境" : "真实数据"
   const envDesc = adminMode
-    ? "admin 免密登录中，正式上线前建议关闭"
+    ? "内部快捷入口，正式上线前建议关闭"
     : demoMode
       ? "连接 Supabase 后启用真实数据"
       : "Supabase 已连接，当前使用真实数据"

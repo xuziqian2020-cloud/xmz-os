@@ -1,6 +1,7 @@
 // 工作台数据查询
 import { createClient } from "@/lib/supabase/server"
 import type { WorkPlan, SmartReminder } from "@/lib/database.types"
+import { generateReminders } from "@/lib/data/xiaomei"
 
 // 获取当前用户信息
 export async function getUser() {
@@ -54,6 +55,7 @@ export async function getWeekPlans(): Promise<WorkPlan[]> {
 // 获取活跃提醒
 export async function getActiveReminders(): Promise<SmartReminder[]> {
   const supabase = createClient()
+  await generateReminders()
 
   const { data } = await supabase
     .from("smart_reminders")

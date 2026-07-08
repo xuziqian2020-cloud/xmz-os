@@ -2,7 +2,7 @@
 import Link from "next/link"
 import { notFound } from "next/navigation"
 import { getProject, getProjectStats } from "@/lib/data/projects"
-import { BookOpen, Bug, FileText, GitBranch, Lightbulb, ListTodo, Settings, BarChart3, MessageSquare } from "lucide-react"
+import { BookOpen, Bug, FileText, GitBranch, Lightbulb, ListTodo, Sparkles, BarChart3, MessageSquare } from "lucide-react"
 
 export default async function ProjectDetailPage({ params }: { params: { id: string } }) {
   const project = await getProject(params.id)
@@ -19,7 +19,7 @@ export default async function ProjectDetailPage({ params }: { params: { id: stri
     { label: "文件", href: `/projects/${project.id}/files`, icon: FileText, count: stats.fileCount },
     { label: "灵感", href: `/projects/${project.id}/ideas`, icon: Lightbulb, count: stats.ideaCount },
     { label: "报表", href: `/projects/${project.id}/reports`, icon: BarChart3, count: undefined },
-    { label: "设置", href: `/projects/${project.id}/settings`, icon: Settings, count: undefined },
+    { label: "经验库", href: `/projects/${project.id}/experiences`, icon: Sparkles, count: undefined },
   ]
 
   return (

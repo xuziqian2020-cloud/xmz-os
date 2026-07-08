@@ -1,9 +1,13 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 
-export async function GET() {
+export async function GET(request: Request) {
   const supabase = createClient()
-  const { data } = await supabase.from("prompt_templates").select("*").is("deleted_at", null).order("updated_at", { ascending: false })
+  const url = new URL(request.url)
+  const projectId = url.searchParams.get("project_id")
+  let query = supabase.from("prompt_templates").select("*").is("deleted_at", null).order("updated_at", { ascending: false })
+  if (projectId) query = query.eq("project_id", projectId)
+  const { data } = await query
   return NextResponse.json(data ?? [])
 }
 
