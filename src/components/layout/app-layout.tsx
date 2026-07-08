@@ -1,10 +1,9 @@
-// 应用外框布局，负责登录保护和产品级工作区容器
 "use client"
 
 import { useEffect, useState } from "react"
 import { usePathname, useRouter } from "next/navigation"
-import { Sidebar } from "@/components/layout/sidebar"
 import { Header } from "@/components/layout/header"
+import { Sidebar } from "@/components/layout/sidebar"
 import { ADMIN_REMEMBER_FLAG } from "@/lib/auth/local-admin"
 import { createClient } from "@/lib/supabase/client"
 import { isDemoMode } from "@/lib/supabase/demo"
@@ -51,7 +50,6 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         const { data: { session } } = await supabase.auth.getSession()
         nextIsAuthed = !!session
       } catch (e: any) {
-        // 配置缺失时进入演示浏览，保证本地验收能看到界面。
         if (e.message?.includes("Supabase 环境变量")) {
           nextConfigError = true
         }
@@ -77,7 +75,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       })
       return () => subscription.unsubscribe()
     } catch {
-      // 登录监听失败不阻断页面渲染，后续由路由守卫兜底。
+      return
     }
   }, [pathname, router, isPublic, demoMode])
 
@@ -89,31 +87,25 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     return (
       <div className="flex min-h-[100dvh] items-center justify-center bg-background">
         <div className="rounded-full border border-border bg-card px-4 py-2 text-sm text-muted-foreground shadow-sm">
-          加载工作区...
+          正在进入工作台...
         </div>
       </div>
     )
   }
 
   if (demoMode || configError || isAuthed) {
-    return renderLayout(children)
+    return (
+      <div className="min-h-[100dvh] bg-background">
+        <Sidebar />
+        <div className="min-h-[100dvh] pl-64">
+          <Header />
+          <main className="min-h-[calc(100dvh-64px)] px-6 py-6">
+            <div className="mx-auto w-full max-w-[1480px]">{children}</div>
+          </main>
+        </div>
+      </div>
+    )
   }
 
   return null
-}
-
-function renderLayout(children: React.ReactNode) {
-  return (
-    <div className="min-h-[100dvh] bg-[radial-gradient(circle_at_top_left,hsl(var(--accent)/0.10),transparent_30rem),hsl(var(--background))]">
-      <Sidebar />
-      <div className="min-h-[100dvh] pl-64">
-        <Header />
-        <main className="min-h-[calc(100dvh-64px)] px-6 py-6">
-          <div className="mx-auto w-full max-w-[1480px]">
-            {children}
-          </div>
-        </main>
-      </div>
-    </div>
-  )
 }

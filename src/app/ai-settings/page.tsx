@@ -1,22 +1,34 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { CheckCircle2, PlugZap, Trash2 } from "lucide-react"
+import type { ReactNode } from "react"
+import { CheckCircle2, PlugZap, Save, Trash2 } from "lucide-react"
+import { cn } from "@/lib/utils"
 
-const providerTypes = [
-  { value: "openai", label: "OpenAI" },
-  { value: "deepseek", label: "DeepSeek" },
-  { value: "claude", label: "Claude" },
-  { value: "qwen", label: "Qwen" },
-  { value: "custom", label: "自定义" },
+type ProviderPreset = {
+  value: string
+  label: string
+  base_url: string
+  default_model: string
+  description: string
+}
+
+const PROVIDER_PRESETS: ProviderPreset[] = [
+  { value: "openai", label: "OpenAI", base_url: "https://api.openai.com/v1", default_model: "gpt-4o-mini", description: "GPT 系列模型" },
+  { value: "deepseek", label: "DeepSeek", base_url: "https://api.deepseek.com/v1", default_model: "deepseek-chat", description: "高性价比模型" },
+  { value: "claude", label: "Claude", base_url: "https://api.anthropic.com/v1", default_model: "claude-sonnet-4-20250514", description: "Anthropic 模型" },
+  { value: "qwen", label: "通义千问", base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1", default_model: "qwen-turbo", description: "阿里云兼容接口" },
+  { value: "zhipu", label: "智谱 GLM", base_url: "https://open.bigmodel.cn/api/paas/v4", default_model: "glm-4-flash", description: "智谱 AI 模型" },
+  { value: "moonshot", label: "Kimi", base_url: "https://api.moonshot.cn/v1", default_model: "moonshot-v1-8k", description: "月之暗面模型" },
+  { value: "custom", label: "自定义", base_url: "", default_model: "", description: "自填兼容地址" },
 ]
 
 const initialForm = {
-  provider_name: "",
+  provider_name: "OpenAI",
   provider_type: "openai",
   base_url: "https://api.openai.com/v1",
   api_key: "",
-  default_model: "",
+  default_model: "gpt-4o-mini",
   is_enabled: true,
 }
 
@@ -35,138 +47,271 @@ export default function AISettingsPage() {
 
   async function loadProviders() {
     setLoading(true)
-    const res = await fetch("/api/ai-providers")
-    const data = await res.json()
     const localProviders = readLocalProviders()
-    if (Array.isArray(data)) setProviders([...localProviders, ...data])
-    else setProviders(localProviders)
-    setLoading(false)
+    try {
+      const res = await fetch("/api/ai-providers")
+      const data = await res.json()
+      setProviders(Array.isArray(data) ? [...localProviders, ...data] : localProviders)
+    } catch {
+      setProviders(localProviders)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  function selectPreset(preset: ProviderPreset) {
+    setForm({
+      ...form,
+      provider_name: preset.value === "custom" ? "" : preset.label,
+      provider_type: preset.value,
+      base_url: preset.base_url,
+      default_model: preset.default_model,
+    })
   }
 
   async function saveProvider() {
-    setSaving(true)
-    setMessage("")
-    const res = await fetch("/api/ai-providers", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
-    })
-    const data = await res.json()
-    if (!res.ok) {
-      const localProvider = {
-        ...form,
-        id: `local-${Date.now()}`,
-        created_at: new Date().toISOString(),
-      }
-      saveLocalProvider(localProvider)
-      setProviders(prev => [localProvider, ...prev])
-      setForm(initialForm)
-      setMessage(`${data.error || "后端保存失败"}；已先保存到浏览器本地，正式上线请补齐 Supabase 表。`)
-      setSaving(false)
+    if (!form.provider_name.trim()) {
+      setMessage("请输入供应商名称")
       return
     }
+    if (!form.base_url.trim()) {
+      setMessage("请输入 API 地址")
+      return
+    }
+    if (!form.api_key.trim()) {
+      setMessage("请输入 API Key")
+      return
+    }
+    if (!form.default_model.trim()) {
+      setMessage("请输入模型名称")
+      return
+    }
+
+    setSaving(true)
+    setMessage("")
+
+    try {
+      const res = await fetch("/api/ai-providers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        saveProviderLocally(`${data.error || "后端保存失败"}，已先保存到浏览器本地`)
+        return
+      }
+      setForm(initialForm)
+      await loadProviders()
+      setMessage("供应商已保存")
+    } catch {
+      saveProviderLocally("后端暂不可用，已先保存到浏览器本地")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  function saveProviderLocally(nextMessage: string) {
+    const localProvider = {
+      ...form,
+      id: `local-${Date.now()}`,
+      created_at: new Date().toISOString(),
+    }
+    saveLocalProvider(localProvider)
+    setProviders((prev) => [localProvider, ...prev])
     setForm(initialForm)
-    await loadProviders()
-    setSaving(false)
-    setMessage("供应商已保存")
+    setMessage(nextMessage)
   }
 
   async function deleteProvider(id: string) {
     if (id.startsWith("local-")) {
       deleteLocalProvider(id)
-      setProviders(prev => prev.filter(p => p.id !== id))
+      setProviders((prev) => prev.filter((provider) => provider.id !== id))
       return
     }
+
     await fetch(`/api/ai-providers/${id}`, { method: "DELETE" })
-    setProviders(prev => prev.filter(p => p.id !== id))
+    setProviders((prev) => prev.filter((provider) => provider.id !== id))
   }
 
   async function testProvider(provider: any) {
     setMessage("正在测试连接...")
-    const res = await fetch("/api/ai-providers/test", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(provider),
-    })
-    const data = await res.json()
-    setMessage(res.ok ? "连接成功" : data.error || "连接失败")
+    try {
+      const res = await fetch("/api/ai-providers/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(provider),
+      })
+      const data = await res.json()
+      setMessage(res.ok ? "连接成功" : data.error || "连接失败")
+    } catch {
+      setMessage("连接测试失败，请检查 API 地址和 Key")
+    }
   }
 
-  if (loading) return <div className="py-20 text-center text-sm text-muted-foreground">加载中...</div>
+  if (loading) {
+    return <div className="flex min-h-[60vh] items-center justify-center text-base text-muted-foreground">正在加载 AI 设置...</div>
+  }
+
+  const selectedPreset = PROVIDER_PRESETS.find((preset) => preset.value === form.provider_type)
 
   return (
     <div className="space-y-6">
       <div>
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[hsl(var(--accent))]">AI Providers</p>
-        <h1 className="mt-2 text-2xl font-semibold tracking-normal">AI 设置</h1>
-        <p className="mt-1 text-sm text-muted-foreground">管理 OpenAI、DeepSeek、Claude、Qwen 或兼容接口的供应商配置。</p>
+        <h1 className="text-3xl font-semibold tracking-normal">AI 设置</h1>
+        <p className="mt-2 text-base text-muted-foreground">选择常用供应商后自动带出 API 地址，再填写 API Key 和模型。</p>
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
-        <section className="rounded-lg border border-border bg-card p-5">
-          <h2 className="text-sm font-semibold">新增供应商 API</h2>
-          <div className="mt-4 space-y-4">
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,480px)_minmax(0,1fr)]">
+        <section className="rounded-xl border border-border bg-card p-6">
+          <h2 className="text-xl font-semibold">新增供应商</h2>
+          <p className="mt-1 text-sm text-muted-foreground">自定义供应商适合兼容 OpenAI 格式的中转地址。</p>
+
+          <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-3">
+            {PROVIDER_PRESETS.map((preset) => (
+              <button
+                key={preset.value}
+                type="button"
+                onClick={() => selectPreset(preset)}
+                className={cn(
+                  "rounded-lg border px-3 py-3 text-left transition-colors",
+                  form.provider_type === preset.value
+                    ? "border-emerald-500 bg-emerald-50 text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-200"
+                    : "border-border bg-background text-foreground hover:border-emerald-500/40"
+                )}
+              >
+                <span className="block text-sm font-semibold">{preset.label}</span>
+                <span className="mt-1 block text-xs text-muted-foreground">{preset.description}</span>
+              </button>
+            ))}
+          </div>
+
+          <div className="mt-5 space-y-4">
             <Field label="供应商名称">
-              <input value={form.provider_name} onChange={e => setForm({ ...form, provider_name: e.target.value })} placeholder="例如：OpenAI 主账号" className="form-input" />
+              <input
+                value={form.provider_name}
+                onChange={(event) => setForm({ ...form, provider_name: event.target.value })}
+                placeholder="例如：我的 OpenAI 主账号"
+                className="form-input h-12 text-base"
+              />
             </Field>
-            <Field label="供应商类型">
-              <select value={form.provider_type} onChange={e => setForm({ ...form, provider_type: e.target.value })} className="form-input">
-                {providerTypes.map(item => <option key={item.value} value={item.value}>{item.label}</option>)}
-              </select>
-            </Field>
+
             <Field label="API 地址">
-              <input value={form.base_url} onChange={e => setForm({ ...form, base_url: e.target.value })} placeholder="https://api.openai.com/v1" className="form-input" />
+              <div className="relative">
+                <input
+                  value={form.base_url}
+                  onChange={(event) => setForm({ ...form, base_url: event.target.value })}
+                  placeholder="https://api.openai.com/v1"
+                  className="form-input h-12 pr-10 font-mono text-base"
+                />
+                {selectedPreset && form.base_url === selectedPreset.base_url && form.base_url && (
+                  <CheckCircle2 className="absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-emerald-500" />
+                )}
+              </div>
             </Field>
+
             <Field label="API Key">
-              <input type="password" value={form.api_key} onChange={e => setForm({ ...form, api_key: e.target.value })} placeholder="sk-..." className="form-input" />
+              <input
+                type="password"
+                value={form.api_key}
+                onChange={(event) => setForm({ ...form, api_key: event.target.value })}
+                placeholder="sk-..."
+                className="form-input h-12 font-mono text-base"
+              />
             </Field>
-            <Field label="默认模型">
-              <input value={form.default_model} onChange={e => setForm({ ...form, default_model: e.target.value })} placeholder="gpt-4o-mini / deepseek-chat" className="form-input" />
+
+            <Field label="模型名称">
+              <input
+                value={form.default_model}
+                onChange={(event) => setForm({ ...form, default_model: event.target.value })}
+                placeholder="例如：gpt-4o-mini"
+                className="form-input h-12 text-base"
+              />
             </Field>
-            <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={form.is_enabled} onChange={e => setForm({ ...form, is_enabled: e.target.checked })} className="h-4 w-4 accent-[hsl(var(--accent))]" />
+
+            <label className="flex items-center gap-3 rounded-lg border border-border bg-background px-4 py-3 text-sm">
+              <input
+                type="checkbox"
+                checked={form.is_enabled}
+                onChange={(event) => setForm({ ...form, is_enabled: event.target.checked })}
+                className="h-5 w-5 rounded accent-emerald-500"
+              />
               启用供应商
             </label>
-            <button onClick={saveProvider} disabled={saving} className="w-full rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background hover:opacity-90 disabled:opacity-40">
+
+            <button
+              type="button"
+              onClick={saveProvider}
+              disabled={saving}
+              className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 px-5 text-base font-semibold text-white transition-colors hover:bg-emerald-500 disabled:opacity-40"
+            >
+              <Save className="h-5 w-5" />
               {saving ? "保存中..." : "保存供应商"}
             </button>
-            {message && <p className="rounded-md border border-border bg-secondary/50 px-3 py-2 text-sm text-muted-foreground">{message}</p>}
+
+            {message && (
+              <p className="rounded-lg border border-border bg-secondary px-4 py-3 text-sm text-muted-foreground">{message}</p>
+            )}
           </div>
         </section>
 
-        <section className="rounded-lg border border-border bg-card p-5">
-          <h2 className="text-sm font-semibold">已配置供应商</h2>
+        <section className="rounded-xl border border-border bg-card p-6">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-semibold">已配置供应商</h2>
+            <span className="rounded-full bg-secondary px-3 py-1 text-sm text-muted-foreground">{providers.length} 个</span>
+          </div>
+
           {providers.length === 0 ? (
-            <div className="mt-4 rounded-lg border border-dashed border-border py-16 text-center text-sm text-muted-foreground">
-              暂无 AI 供应商配置
+            <div className="mt-6 flex min-h-[280px] flex-col items-center justify-center rounded-lg border border-dashed border-border text-center">
+              <PlugZap className="mb-3 h-10 w-10 text-muted-foreground" />
+              <p className="text-base font-medium">暂无 AI 供应商</p>
+              <p className="mt-1 text-sm text-muted-foreground">先在左侧新增一个常用供应商。</p>
             </div>
           ) : (
             <div className="mt-4 space-y-3">
-              {providers.map(p => (
-                <div key={p.id} className="rounded-lg border border-border bg-background p-4">
-                  <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                    <div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-sm font-semibold">{p.provider_name}</span>
-                        <span className="rounded bg-secondary px-1.5 py-0.5 text-[11px] text-muted-foreground">{p.provider_type}</span>
-                        {p.is_enabled && <CheckCircle2 className="h-4 w-4 text-[hsl(var(--accent))]" />}
+              {providers.map((provider) => {
+                const preset = PROVIDER_PRESETS.find((item) => item.value === provider.provider_type)
+                return (
+                  <div key={provider.id} className="rounded-lg border border-border bg-background p-4">
+                    <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-base font-semibold">{provider.provider_name}</span>
+                          <span className="rounded-md bg-secondary px-2 py-0.5 text-xs text-muted-foreground">
+                            {preset?.label || provider.provider_type}
+                          </span>
+                          {provider.is_enabled && (
+                            <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-0.5 text-xs text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
+                              <CheckCircle2 className="h-3 w-3" />
+                              已启用
+                            </span>
+                          )}
+                        </div>
+                        <p className="mt-1 truncate font-mono text-sm text-muted-foreground">{provider.base_url}</p>
+                        {provider.default_model && <p className="mt-1 text-sm text-muted-foreground">模型：{provider.default_model}</p>}
                       </div>
-                      <p className="mt-1 text-xs text-muted-foreground">{p.base_url}</p>
-                      {p.default_model && <p className="mt-1 text-xs text-muted-foreground">默认模型：{p.default_model}</p>}
-                    </div>
-                    <div className="flex gap-2">
-                      <button onClick={() => testProvider(p)} className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-2 text-xs hover:bg-secondary">
-                        <PlugZap className="h-3.5 w-3.5" />
-                        测试
-                      </button>
-                      <button onClick={() => deleteProvider(p.id)} className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-2 text-xs text-destructive hover:bg-destructive/10">
-                        <Trash2 className="h-3.5 w-3.5" />
-                        删除
-                      </button>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => testProvider(provider)}
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-sm hover:bg-secondary"
+                        >
+                          <PlugZap className="h-4 w-4" />
+                          测试
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => deleteProvider(provider.id)}
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:border-red-900/50 dark:text-red-400 dark:hover:bg-red-950/50"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          删除
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </section>
@@ -194,10 +339,10 @@ function deleteLocalProvider(id: string) {
   window.localStorage.setItem(LOCAL_AI_PROVIDERS_KEY, JSON.stringify(providers))
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <label className="block">
-      <span className="mb-1.5 block text-xs font-medium text-muted-foreground">{label}</span>
+      <span className="mb-1.5 block text-sm font-semibold">{label}</span>
       {children}
     </label>
   )

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
-import { normalizeStatusForType } from "@/lib/work-plans/status-rules"
+import { normalizeStatusForType, statusToPriority } from "@/lib/work-plans/status-rules"
 
 export async function POST(request: Request) {
   const supabase = createClient()
@@ -13,14 +13,21 @@ export async function POST(request: Request) {
 
   const statusRule = normalizeStatusForType({
     type: body.type,
-    status: body.status,
+    status: body.status || body.priority,
     progress: body.progress,
   })
 
   const { data, error } = await supabase
     .from("work_plans")
-    .insert({ ...body, user_id: user.id, status: statusRule.status, progress: statusRule.progress })
-    .select().single()
+    .insert({
+      ...body,
+      user_id: user.id,
+      status: statusRule.status,
+      priority: body.priority || statusToPriority(statusRule.status),
+      progress: statusRule.progress,
+    })
+    .select()
+    .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json(data)
@@ -30,6 +37,7 @@ export async function GET(request: Request) {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: "未登录" }, { status: 401 })
+
   const url = new URL(request.url)
   const projectId = url.searchParams.get("project_id")
   const type = url.searchParams.get("type")

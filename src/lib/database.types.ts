@@ -1,36 +1,16 @@
-// 数据库类型定义 — 与 Supabase 表结构对应
-
-// ============================================
-// 枚举类型
-// ============================================
 export type ProjectStatus = "active" | "archived" | "paused"
 export type WorkPlanType = "requirement" | "bug" | "custom"
 export type WorkPlanPriority = "high" | "medium" | "low"
-
-export type RequirementStatus =
-  | "待确认" | "待开发" | "开发中" | "待测试" | "已完成" | "已上线" | "已取消"
-export type BugStatus =
-  | "待分析" | "无法重现" | "已修复"
-export type CustomWorkStatus =
-  | "未开始" | "进行中" | "已完成" | "已暂停" | "已取消"
-export type WorkPlanStatus = RequirementStatus | BugStatus | CustomWorkStatus
-
+export type WorkPlanStatus = "重要" | "中等" | "低"
 export type BugSeverity = "high" | "medium" | "low"
 
-export type IdeaCategory =
-  | "功能想法" | "优化想法" | "AI想法" | "业务想法" | "技术想法"
-export type IdeaStatus =
-  | "未整理" | "已采纳" | "已放弃" | "已转计划" | "已转知识库"
+export type IdeaCategory = "功能想法" | "优化想法" | "AI想法" | "业务想法" | "技术想法"
+export type IdeaStatus = "未整理" | "已采纳" | "已放弃" | "已转计划" | "已转知识库"
 
-export type AIProviderType = "openai" | "deepseek" | "claude" | "qwen" | "custom"
+export type AIProviderType = "openai" | "deepseek" | "claude" | "qwen" | "zhipu" | "moonshot" | "custom"
 export type ReminderType = "bug_severe" | "plan_overdue" | "plan_due_soon" | "important_plan" | "weekly_candidate" | "custom"
 
-export type ReportType =
-  | "daily" | "weekly" | "monthly" | "yearly" | "project_summary" | "bug_review"
-
-// ============================================
-// 表行类型
-// ============================================
+export type ReportType = "daily" | "weekly" | "monthly" | "yearly" | "project_summary" | "bug_review"
 
 export interface Project {
   id: string
@@ -61,18 +41,15 @@ export interface WorkPlan {
   start_date: string | null
   due_date: string | null
   completed_at: string | null
-  // 需求字段
   source_person: string | null
   source_department: string | null
   requirement_background: string | null
   acceptance_criteria: string | null
-  // Bug 字段
   bug_severity: BugSeverity | null
   bug_symptom: string | null
   bug_error_message: string | null
   bug_reason: string | null
   bug_solution: string | null
-  // 通用
   review_summary: string | null
   tags: string[] | null
   created_at: string
@@ -242,9 +219,6 @@ export interface ReportHistory {
   created_at: string
 }
 
-// ============================================
-// Supabase Database 完整类型（用于 supabase.from() 类型推断）
-// ============================================
 export interface Database {
   public: {
     Tables: {

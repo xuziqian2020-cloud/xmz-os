@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
-import { normalizeStatusForType } from "@/lib/work-plans/status-rules"
+import { normalizeStatusForType, statusToPriority } from "@/lib/work-plans/status-rules"
 
 export async function GET(_: Request, { params }: { params: { id: string } }) {
   const supabase = createClient()
@@ -22,20 +22,34 @@ export async function PUT(request: Request, { params }: { params: { id: string }
 
   const statusRule = normalizeStatusForType({
     type: body.type || current.type,
-    status: body.status ?? current.status,
+    status: body.status ?? body.priority ?? current.status,
     progress: body.progress ?? current.progress,
   })
 
   const { data, error } = await supabase
-    .from("work_plans").update({ ...body, status: statusRule.status, progress: statusRule.progress, updated_at: new Date().toISOString() })
-    .eq("id", params.id).select().single()
+    .from("work_plans")
+    .update({
+      ...body,
+      status: statusRule.status,
+      priority: body.priority || statusToPriority(statusRule.status),
+      progress: statusRule.progress,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", params.id)
+    .select()
+    .single()
+
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json(data)
 }
 
 export async function DELETE(_: Request, { params }: { params: { id: string } }) {
   const supabase = createClient()
-  const { error } = await supabase.from("work_plans").update({ deleted_at: new Date().toISOString() }).eq("id", params.id)
+  const { error } = await supabase
+    .from("work_plans")
+    .update({ deleted_at: new Date().toISOString() })
+    .eq("id", params.id)
+
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ success: true })
 }

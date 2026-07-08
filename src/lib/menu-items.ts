@@ -1,28 +1,27 @@
-/* 左侧菜单项数据 */
+import type { ComponentType } from "react"
 import {
-  LayoutDashboard,
-  FolderKanban,
-  ListTodo,
-  Bug,
-  BookOpen,
+  BarChart3,
   BookMarked,
-  Terminal,
-  GitBranch,
+  BookOpen,
+  Bug,
   FileText,
+  FolderKanban,
+  GitBranch,
+  LayoutDashboard,
   Lightbulb,
-  Wrench,
+  ListTodo,
   MessageSquareHeart,
   Settings,
-  BarChart3,
+  Terminal,
+  Wrench,
 } from "lucide-react"
 
 export interface MenuItem {
   label: string
   href: string
-  icon: React.ComponentType<{ className?: string }>
+  icon: ComponentType<{ className?: string }>
 }
 
-// 主菜单项目
 export const mainMenuItems: MenuItem[] = [
   { label: "工作台", href: "/dashboard", icon: LayoutDashboard },
   { label: "项目", href: "/projects", icon: FolderKanban },
@@ -36,14 +35,12 @@ export const mainMenuItems: MenuItem[] = [
   { label: "灵感箱", href: "/ideas", icon: Lightbulb },
 ]
 
-// 工具菜单项目
 export const toolMenuItems: MenuItem[] = [
   { label: "本地 AI 工具", href: "/tools", icon: Wrench },
-  { label: "AI 研发秘书", href: "/ai-secretary", icon: MessageSquareHeart },
+  { label: "小美待办雷达", href: "/ai-secretary", icon: MessageSquareHeart },
   { label: "报表总结", href: "/reports", icon: BarChart3 },
 ]
 
-// 设置菜单项目
 export const settingMenuItems: MenuItem[] = [
   { label: "AI 设置", href: "/ai-settings", icon: Settings },
 ]

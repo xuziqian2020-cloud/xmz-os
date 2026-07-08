@@ -1,8 +1,8 @@
-import type { WorkPlanType } from "@/lib/database.types"
+import type { WorkPlanPriority, WorkPlanType } from "@/lib/database.types"
 
-export const requirementStatuses = ["待确认", "待开发", "开发中", "待测试", "已完成", "已上线", "已取消"] as const
-export const bugStatuses = ["待分析", "无法重现", "已修复"] as const
-export const customWorkStatuses = ["未开始", "进行中", "已完成", "已暂停", "已取消"] as const
+export const visiblePlanStatuses = ["重要", "中等", "低"] as const
+
+export type VisiblePlanStatus = (typeof visiblePlanStatuses)[number]
 
 export type StatusRuleInput = {
   type?: WorkPlanType | string | null
@@ -10,34 +10,41 @@ export type StatusRuleInput = {
   progress?: number | null
 }
 
-export function getDefaultStatus(type?: WorkPlanType | string | null): string {
-  if (type === "bug") return "待分析"
-  if (type === "requirement") return "待确认"
-  return "未开始"
+export function getDefaultStatus(_type?: WorkPlanType | string | null): VisiblePlanStatus {
+  return "中等"
 }
 
-export function getAllowedStatuses(type?: WorkPlanType | string | null): readonly string[] {
-  if (type === "bug") return bugStatuses
-  if (type === "requirement") return requirementStatuses
-  return customWorkStatuses
+export function getAllowedStatuses(_type?: WorkPlanType | string | null): readonly VisiblePlanStatus[] {
+  return visiblePlanStatuses
 }
 
-export function normalizeStatusForType(input: StatusRuleInput): { status: string; progress: number } {
-  const allowedStatuses = getAllowedStatuses(input.type)
-  const defaultStatus = getDefaultStatus(input.type)
-  const status = input.status && allowedStatuses.includes(input.status) ? input.status : defaultStatus
-
-  if (input.type === "bug") {
-    return {
-      status,
-      progress: status === "已修复" ? 100 : 0,
-    }
-  }
+export function normalizeStatusForType(input: StatusRuleInput): { status: VisiblePlanStatus; progress: number } {
+  const status = toVisibleStatus(input.status)
 
   return {
     status,
     progress: clampProgress(input.progress),
   }
+}
+
+export function statusToPriority(status?: string | null): WorkPlanPriority {
+  if (status === "重要") return "high"
+  if (status === "低") return "low"
+  return "medium"
+}
+
+export function priorityToStatus(priority?: string | null): VisiblePlanStatus {
+  if (priority === "high") return "重要"
+  if (priority === "low") return "低"
+  return "中等"
+}
+
+export function toVisibleStatus(status?: string | null): VisiblePlanStatus {
+  if (status === "重要" || status === "中等" || status === "低") return status
+  if (status === "high") return "重要"
+  if (status === "medium") return "中等"
+  if (status === "low") return "低"
+  return "中等"
 }
 
 export function clampProgress(progress?: number | null): number {

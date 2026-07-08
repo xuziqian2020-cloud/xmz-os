@@ -3,7 +3,12 @@
 import { FormEvent, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { ArrowRight, CheckCircle2, LockKeyhole, Mail, ShieldCheck } from "lucide-react"
-import { ADMIN_REMEMBER_FLAG, REMEMBER_CREDENTIALS_KEY, isAdminLoginName, normalizeLoginName } from "@/lib/auth/local-admin"
+import {
+  ADMIN_REMEMBER_FLAG,
+  REMEMBER_CREDENTIALS_KEY,
+  isAdminLoginName,
+  normalizeLoginName,
+} from "@/lib/auth/local-admin"
 import { signInOrSignUpWithPassword } from "@/lib/auth/password-login"
 import { createClient } from "@/lib/supabase/client"
 import { isDemoMode } from "@/lib/supabase/demo"
@@ -20,8 +25,8 @@ export default function LoginPage() {
   const [configError, setConfigError] = useState(false)
   const [rememberPassword, setRememberPassword] = useState(false)
 
-  const isAdminLogin = isAdminLoginName(email)
-  const canSubmit = email.trim().length > 0 && (isAdminLogin || password.length >= 6) && !loading
+  const isXiaomeiLogin = isAdminLoginName(email)
+  const canSubmit = email.trim().length > 0 && (isXiaomeiLogin || password.length >= 6) && !loading
 
   useEffect(() => {
     try {
@@ -46,12 +51,12 @@ export default function LoginPage() {
     setNotice("")
 
     try {
-      if (isAdminLogin) {
+      if (isXiaomeiLogin) {
         const res = await fetch("/api/auth/admin-login", { method: "POST" })
         const data = await res.json()
 
         if (!res.ok || !data.ok) {
-          setError(data.error || "快捷登录失败，请检查 Supabase 设置。")
+          setError(data.error || "徐小美免密登录失败，请检查配置。")
           return
         }
 
@@ -101,169 +106,121 @@ export default function LoginPage() {
     }
   }
 
-  function handleEnterDemo() {
-    router.push("/dashboard")
-    router.refresh()
-  }
-
   return (
-    <main className="min-h-[100dvh] overflow-hidden bg-[linear-gradient(135deg,hsl(220_30%_98%),hsl(214_28%_94%))] text-foreground dark:bg-[linear-gradient(135deg,hsl(222_24%_7%),hsl(220_22%_11%))]">
-      <div className="mx-auto grid min-h-[100dvh] w-full max-w-7xl grid-cols-1 lg:grid-cols-[1.08fr_0.92fr]">
-        <section className="relative flex min-h-[44rem] flex-col justify-between px-6 py-8 sm:px-10 lg:px-12">
-          <div className="absolute inset-0 -z-0 bg-[linear-gradient(hsl(var(--foreground)/0.045)_1px,transparent_1px),linear-gradient(90deg,hsl(var(--foreground)/0.045)_1px,transparent_1px)] bg-[size:44px_44px]" />
-          <div className="relative z-10 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-foreground text-sm font-semibold text-background shadow-sm">
-                XMZ
-              </div>
-              <div>
-                <p className="text-sm font-semibold tracking-tight">XMZ OS</p>
-                <p className="text-xs text-muted-foreground">个人研发工作 OS</p>
-              </div>
+    <main className="flex min-h-[100dvh] items-center justify-center bg-slate-950 px-6 py-10 text-white">
+      <section className="w-full max-w-[440px]">
+        <div className="mb-7 flex items-center gap-3">
+          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500 text-base font-bold text-slate-950">
+            小美
+          </div>
+          <div>
+            <p className="text-xl font-semibold">XMZ OS</p>
+            <p className="text-base text-slate-400">个人研发工作台</p>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-slate-800 bg-slate-900 p-7 shadow-2xl shadow-black/30">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-sm font-semibold text-emerald-300">登录工作台</p>
+              <h1 className="mt-2 text-3xl font-semibold tracking-normal">进入 XMZ OS</h1>
             </div>
-            <span className="rounded-full border border-border bg-background/70 px-3 py-1 text-xs text-muted-foreground shadow-sm backdrop-blur">
-              {demoMode ? "演示模式" : "Supabase 已接入"}
-            </span>
-          </div>
-
-          <div className="relative z-10 max-w-2xl py-16 lg:py-24">
-            <p className="mb-5 inline-flex rounded-full border border-border bg-background/70 px-3 py-1 text-xs font-medium text-muted-foreground shadow-sm backdrop-blur">
-              研发计划、知识库、任务与复盘放在一个工作区
-            </p>
-            <h1 className="max-w-[10em] text-5xl font-semibold leading-[1.05] tracking-tight text-foreground sm:text-6xl">
-              <span className="block">你的研发工作</span>
-              <span className="block">从这里开始。</span>
-            </h1>
-            <p className="mt-6 max-w-xl text-base leading-7 text-muted-foreground sm:text-lg">
-              用邮箱和密码进入。第一次使用会自动创建账号，之后只校验邮箱和密码。
-            </p>
-          </div>
-
-          <div className="relative z-10 grid gap-3 pb-6 sm:grid-cols-3">
-            {[
-              ["计划", "拆分目标与下一步动作"],
-              ["知识", "沉淀项目资料和经验"],
-              ["复盘", "跟踪问题、文件与报告"],
-            ].map(([title, body]) => (
-              <div key={title} className="rounded-lg border border-border bg-background/72 p-4 shadow-sm backdrop-blur">
-                <p className="text-sm font-semibold">{title}</p>
-                <p className="mt-2 text-xs leading-5 text-muted-foreground">{body}</p>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <section className="flex items-center px-6 pb-10 sm:px-10 lg:px-12 lg:py-12">
-          <div className="w-full rounded-lg border border-border bg-card/92 p-5 shadow-[0_28px_90px_hsl(220_28%_22%/0.16)] backdrop-blur xl:p-7">
-            <div className="mb-8 flex items-start justify-between gap-4">
-              <div>
-                <p className="text-sm font-semibold text-foreground">登录工作台</p>
-                <h2 className="mt-2 text-2xl font-semibold tracking-tight">邮箱和密码登录</h2>
-              </div>
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-accent text-accent-foreground shadow-sm">
-                <LockKeyhole className="h-5 w-5" />
-              </div>
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-500 text-slate-950">
+              <LockKeyhole className="h-6 w-6" />
             </div>
+          </div>
 
-            {demoMode && (
-              <div className="mb-5 rounded-lg border border-amber-300/60 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900 dark:border-amber-900/80 dark:bg-amber-950/50 dark:text-amber-100">
-                当前是演示模式。配置 Supabase 后会启用真实账号登录。
-              </div>
-            )}
+          {demoMode && (
+            <div className="mt-5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+              当前是演示模式。普通账号可直接进入预览，徐小美仍使用免密入口。
+            </div>
+          )}
 
-            {configError && (
-              <div className="mb-5 rounded-lg border border-destructive/25 bg-destructive/10 px-4 py-3 text-sm leading-6 text-destructive">
-                未配置 Supabase 环境变量。请检查 NEXT_PUBLIC_SUPABASE_URL 和 NEXT_PUBLIC_SUPABASE_ANON_KEY。
-              </div>
-            )}
+          {configError && (
+            <div className="mt-5 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+              未配置 Supabase 环境变量，请检查 URL 和 ANON KEY。
+            </div>
+          )}
 
-            <form className="space-y-5" onSubmit={handleSubmit}>
+          <form className="mt-7 space-y-5" onSubmit={handleSubmit}>
+            <label className="block">
+              <span className="mb-2 flex items-center gap-2 text-base font-medium text-slate-200">
+                <Mail className="h-5 w-5 text-slate-400" />
+                邮箱账号
+              </span>
+              <input
+                type="text"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                placeholder="输入邮箱，或输入徐小美免密登录"
+                autoComplete="username"
+                className="h-14 w-full rounded-xl border border-slate-700 bg-slate-950 px-4 text-lg text-white outline-none transition-all placeholder:text-slate-500 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-500/10"
+              />
+            </label>
+
+            {!isXiaomeiLogin && (
               <label className="block">
-                <span className="mb-2 flex items-center gap-2 text-sm font-medium text-foreground">
-                  <Mail className="h-4 w-4 text-muted-foreground" />
-                  邮箱账号
-                </span>
-                <input
-                  type="text"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="name@example.com"
-                  autoComplete="username"
-                  className="h-11 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none transition-colors placeholder:text-muted-foreground/55 focus:border-accent focus:ring-2 focus:ring-accent/18"
-                />
-              </label>
-
-              <label className="block">
-                <span className="mb-2 flex items-center gap-2 text-sm font-medium text-foreground">
-                  <ShieldCheck className="h-4 w-4 text-muted-foreground" />
+                <span className="mb-2 flex items-center gap-2 text-base font-medium text-slate-200">
+                  <ShieldCheck className="h-5 w-5 text-slate-400" />
                   登录密码
                 </span>
                 <input
                   type="password"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder={isAdminLogin ? "徐小美专用入口" : "至少 6 位密码"}
+                  onChange={(event) => setPassword(event.target.value)}
+                  placeholder="至少 6 位密码"
                   autoComplete="current-password"
-                  disabled={isAdminLogin}
-                  className="h-11 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none transition-colors placeholder:text-muted-foreground/55 focus:border-accent focus:ring-2 focus:ring-accent/18"
+                  className="h-14 w-full rounded-xl border border-slate-700 bg-slate-950 px-4 text-lg text-white outline-none transition-all placeholder:text-slate-500 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-500/10"
                 />
               </label>
+            )}
 
-              <label className="flex items-center justify-between gap-3 rounded-lg border border-border bg-secondary/40 px-3 py-2.5 text-sm">
+            {!isXiaomeiLogin && (
+              <label className="flex items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-950 px-4 py-3">
                 <span>
-                  <span className="block font-medium text-foreground">记住密码</span>
-                  <span className="mt-0.5 block text-xs text-muted-foreground">仅保存在当前浏览器，快捷入口不会保存密码。</span>
+                  <span className="block text-sm font-medium text-slate-200">记住密码</span>
+                  <span className="mt-0.5 block text-xs text-slate-500">仅保存在当前浏览器</span>
                 </span>
                 <input
                   type="checkbox"
                   checked={rememberPassword}
-                  onChange={(e) => setRememberPassword(e.target.checked)}
-                  disabled={isAdminLogin}
-                  className="h-4 w-4 accent-[hsl(var(--accent))]"
+                  onChange={(event) => setRememberPassword(event.target.checked)}
+                  className="h-5 w-5 rounded accent-emerald-500"
                 />
               </label>
-
-              {error && (
-                <p className="rounded-lg border border-destructive/25 bg-destructive/10 px-3 py-2 text-sm leading-6 text-destructive">
-                  {error}
-                </p>
-              )}
-
-              {notice && (
-                <p className="flex items-center gap-2 rounded-lg border border-accent/25 bg-accent/10 px-3 py-2 text-sm leading-6 text-accent">
-                  <CheckCircle2 className="h-4 w-4" />
-                  {notice}
-                </p>
-              )}
-
-              <button
-                type="submit"
-                disabled={!canSubmit}
-                className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-foreground px-4 text-sm font-semibold text-background shadow-sm transition-all hover:translate-y-[-1px] hover:opacity-95 active:translate-y-0 disabled:pointer-events-none disabled:opacity-45"
-              >
-                {loading ? "正在处理" : isAdminLogin ? "徐小美免密登录" : demoMode ? "进入演示工作台" : "登录或首次注册"}
-                <ArrowRight className="h-4 w-4" />
-              </button>
-            </form>
-
-            {demoMode && (
-              <button
-                type="button"
-                onClick={handleEnterDemo}
-                className="mt-3 inline-flex h-11 w-full items-center justify-center rounded-lg border border-border bg-background text-sm font-semibold text-foreground transition-colors hover:bg-secondary active:scale-[0.99]"
-              >
-                不填账号，直接预览
-              </button>
             )}
 
-            <div className="mt-7 border-t border-border pt-5">
-              <p className="text-xs leading-5 text-muted-foreground">
-                首次登录会自动注册。再次登录时，如果邮箱已存在，系统只接受匹配的密码。
+            {isXiaomeiLogin && (
+              <div className="flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
+                <CheckCircle2 className="h-5 w-5" />
+                已识别为徐小美账号，可以直接登录。
+              </div>
+            )}
+
+            {error && (
+              <p className="rounded-xl border border-red-500/25 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+                {error}
               </p>
-            </div>
-          </div>
-        </section>
-      </div>
+            )}
+
+            {notice && (
+              <p className="flex items-center gap-2 rounded-xl border border-emerald-500/25 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">
+                <CheckCircle2 className="h-4 w-4" />
+                {notice}
+              </p>
+            )}
+
+            <button
+              type="submit"
+              disabled={!canSubmit}
+              className="inline-flex h-14 w-full items-center justify-center gap-2 rounded-xl bg-emerald-400 text-base font-semibold text-slate-950 shadow-lg shadow-emerald-500/20 transition-all hover:bg-emerald-300 active:scale-[0.99] disabled:pointer-events-none disabled:opacity-40"
+            >
+              {loading ? "正在处理..." : isXiaomeiLogin ? "徐小美免密登录" : demoMode ? "进入演示工作台" : "登录或首次注册"}
+              <ArrowRight className="h-5 w-5" />
+            </button>
+          </form>
+        </div>
+      </section>
     </main>
   )
 }

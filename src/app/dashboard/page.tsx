@@ -1,4 +1,7 @@
+"use client"
+
 import Link from "next/link"
+import { useEffect, useMemo, useState } from "react"
 import type { ComponentType } from "react"
 import {
   AlertTriangle,
@@ -8,20 +11,20 @@ import {
   CalendarDays,
   CheckCircle2,
   Clock3,
-  Code2,
   FileText,
   FolderKanban,
   Gauge,
-  GitBranch,
   Lightbulb,
   ListChecks,
   MessageSquareText,
   Plus,
   ShieldCheck,
+  Sparkles,
   TerminalSquare,
 } from "lucide-react"
-import { cn } from "@/lib/utils"
 import { PlanStatusSelect } from "@/components/plans/plan-status-select"
+import { ADMIN_REMEMBER_FLAG } from "@/lib/auth/local-admin"
+import { cn } from "@/lib/utils"
 import type { SmartReminder, WorkPlan } from "@/lib/database.types"
 
 type PlanLike = Partial<WorkPlan> & {
@@ -36,159 +39,120 @@ type ReminderLike = Partial<SmartReminder> & {
 
 type IconComponent = ComponentType<{ className?: string }>
 
-const demoReminders: ReminderLike[] = [
-  {
-    id: "demo-risk-login",
-    reminder_type: "bug_severe",
-    title: "登录页验证链路需要优先收口",
-    description: "当前入口影响用户进入工作台，建议先完成错误态、重发入口和配置提示。",
-  },
-  {
-    id: "demo-plan-doc",
-    reminder_type: "plan_overdue",
-    title: "API 接口文档整理已经超过计划时间",
-    description: "上线前需要把核心接口、权限边界和字段说明补齐，避免后续联调返工。",
-  },
-  {
-    id: "demo-weekly",
-    reminder_type: "weekly_candidate",
-    title: "本周已有可整理成周报的研发进展",
-    description: "建议把修复、重构和上线准备按项目归档，方便后续复盘。",
-  },
-]
-
 const demoTodayPlans: PlanLike[] = [
   {
     id: "demo-login",
-    title: "重构登录页与演示环境进入链路",
+    title: "修正徐小美免密登录入口",
     type: "bug",
     priority: "high",
-    status: "待分析",
-    progress: 0,
+    status: "重要",
+    progress: 35,
     due_date: "今天",
-    description: "先保证本地和正式环境都能稳定进入工作台。",
+    description: "只有输入徐小美时允许免密，admin 不再触发专用入口。",
   },
   {
-    id: "demo-dashboard",
-    title: "完成 XMZ OS 工作台视觉升级",
+    id: "demo-search",
+    title: "让全局搜索可用",
     type: "requirement",
     priority: "high",
-    status: "开发中",
-    progress: 78,
+    status: "重要",
+    progress: 45,
     due_date: "今天",
-    description: "把首页改成研发指挥中心，突出待办、项目和快速捕获。",
-  },
-  {
-    id: "demo-knowledge",
-    title: "沉淀上线前配置清单",
-    type: "custom",
-    priority: "medium",
-    status: "未开始",
-    progress: 22,
-    due_date: "今天",
-    description: "整理 Supabase、Netlify、环境变量和权限检查项。",
+    description: "搜索项目、计划、知识、Prompt 和灵感，避免入口只是摆设。",
   },
 ]
 
 const demoWeekPlans: PlanLike[] = [
+  ...demoTodayPlans,
   {
-    id: "demo-week-tests",
-    title: "补齐登录、工作台和项目列表的回归检查",
+    id: "demo-report",
+    title: "报表导出支持 Word 文档格式",
     type: "custom",
     priority: "medium",
-    status: "进行中",
-    progress: 46,
-    due_date: "周三",
+    status: "中等",
+    progress: 60,
+    due_date: "周四",
+    description: "日报、周报、月报、年报都能切换预览并导出 Word 可打开的文章格式。",
   },
   {
-    id: "demo-week-project",
-    title: "项目沙箱支持按状态筛选和归档",
+    id: "demo-ai-setting",
+    title: "AI 设置按常用供应商快速配置",
     type: "requirement",
     priority: "medium",
-    status: "待开发",
-    progress: 18,
+    status: "中等",
+    progress: 55,
     due_date: "周五",
+    description: "选择供应商后自动带出 API 地址，只输入 Key 和模型即可。",
   },
   {
-    id: "demo-week-report",
-    title: "生成周报摘要模板",
+    id: "demo-polish",
+    title: "统一工作台中文字号和视觉层级",
     type: "custom",
     priority: "low",
-    status: "待确认",
-    progress: 10,
+    status: "低",
+    progress: 30,
     due_date: "周五",
+    description: "减少无关说明，提升主要信息可读性。",
   },
 ]
 
-const quickActions: Array<{
-  label: string
-  desc: string
-  href: string
-  icon: IconComponent
-}> = [
-  { label: "工作计划", desc: "需求、任务、日程", href: "/plans/new", icon: ListChecks },
-  { label: "Bug 记录", desc: "故障、原因、方案", href: "/plans/new?type=bug", icon: Bug },
-  { label: "知识沉淀", desc: "接口、方案、结论", href: "/knowledge/new", icon: BookOpen },
-  { label: "Prompt 模板", desc: "常用提示词资产", href: "/prompts/new", icon: TerminalSquare },
-  { label: "灵感捕获", desc: "想法先入库", href: "/ideas/new", icon: Lightbulb },
-]
-
-const projectCards = [
+const demoReminders: ReminderLike[] = [
   {
-    title: "XMZ OS",
-    desc: "个人研发操作系统，先把登录、首页和上线链路打稳。",
-    href: "/projects",
-    status: "当前主线",
-    metric: "3 个重点",
-    icon: Code2,
+    id: "today-login",
+    reminder_type: "bug_severe",
+    title: "登录入口需要优先验证",
+    description: "入口错误会直接影响进入工作台，今天先闭环。",
   },
   {
-    title: "AI 研发秘书",
-    desc: "把提醒、周报、知识串联成可执行的研发辅助流。",
-    href: "/ai-secretary",
-    status: "能力孵化",
-    metric: "10 条提醒",
-    icon: MessageSquareText,
+    id: "today-search",
+    reminder_type: "plan_due_soon",
+    title: "全局搜索今天要可点击可返回结果",
+    description: "顶部搜索按钮要能打开并检索核心数据。",
   },
   {
-    title: "知识资产库",
-    desc: "把项目文档、接口说明、Prompt 和复盘统一归档。",
-    href: "/knowledge",
-    status: "持续沉淀",
-    metric: "待补结构",
-    icon: FolderKanban,
+    id: "week-report",
+    reminder_type: "weekly_candidate",
+    title: "本周适合整理成周报",
+    description: "登录、统计、导航和报表导出都有明确产出。",
+  },
+  {
+    id: "week-ai",
+    reminder_type: "important_plan",
+    title: "AI 设置本周需要完成配置闭环",
+    description: "常用供应商和自定义供应商都要能保存。",
   },
 ]
 
-export default async function DashboardPage() {
-  let user: { email?: string | null } | null = null
-  let todayPlans: PlanLike[] = []
-  let weekPlans: PlanLike[] = []
-  let reminders: ReminderLike[] = []
+const quickActions: Array<{ label: string; desc: string; href: string; icon: IconComponent }> = [
+  { label: "新建需求", desc: "记录业务需求和验收点", href: "/plans/new?type=requirement", icon: ListChecks },
+  { label: "登记 Bug", desc: "记录问题、原因和修复", href: "/plans/new?type=bug", icon: Bug },
+  { label: "写知识", desc: "沉淀接口、方案和结论", href: "/knowledge/new", icon: BookOpen },
+  { label: "写 Prompt", desc: "保存常用提示词", href: "/prompts/new", icon: TerminalSquare },
+  { label: "记灵感", desc: "先收集想法再整理", href: "/ideas/new", icon: Lightbulb },
+]
 
-  try {
-    const dashboardData = await import("@/lib/data/dashboard")
-    user = await dashboardData.getUser()
-    const results = await Promise.all([
-      dashboardData.getTodayPlans(),
-      dashboardData.getWeekPlans(),
-      dashboardData.getActiveReminders(),
-    ])
-    todayPlans = results[0]
-    weekPlans = results[1]
-    reminders = results[2]
-  } catch {
-    // 本地未配置 Supabase 时使用演示数据，保证界面验收和产品判断不中断。
-    todayPlans = demoTodayPlans
-    weekPlans = demoWeekPlans
-    reminders = demoReminders
-  }
+export default function DashboardPage() {
+  const [adminMode, setAdminMode] = useState(false)
+  const [viewMode, setViewMode] = useState<"today" | "week">("today")
 
-  const userName = user?.email?.split("@")[0] ?? "XMZ"
-  const allPlans = mergePlans(todayPlans, weekPlans)
-  const highPriorityCount = allPlans.filter((plan) => plan.priority === "high").length
-  const activeCount = allPlans.filter((plan) => !isFinished(plan.status)).length
-  const averageProgress = getAverageProgress(allPlans)
+  useEffect(() => {
+    setAdminMode(window.localStorage.getItem(ADMIN_REMEMBER_FLAG) === "1")
+  }, [])
+
+  const displayName = adminMode ? "徐小美" : "开发者"
+  const shownPlans = viewMode === "today" ? demoTodayPlans : demoWeekPlans
+  const weekPlans = demoWeekPlans
+  const todayReminders = demoReminders.filter((item) =>
+    item.reminder_type === "bug_severe" || item.reminder_type === "plan_overdue" || item.reminder_type === "plan_due_soon"
+  )
+  const todayReminderIds = new Set(todayReminders.map((item) => item.id))
+  const weekReminders = demoReminders.filter((item) =>
+    (item.reminder_type === "important_plan" || item.reminder_type === "weekly_candidate") && !todayReminderIds.has(item.id)
+  )
+
+  const importantCount = weekPlans.filter((plan) => plan.priority === "high" || plan.status === "重要").length
+  const unfinishedCount = weekPlans.filter((plan) => !isFinished(plan.status)).length
+  const averageProgress = getAverageProgress(weekPlans)
   const currentDate = new Date().toLocaleDateString("zh-CN", {
     year: "numeric",
     month: "long",
@@ -196,94 +160,111 @@ export default async function DashboardPage() {
     weekday: "long",
   })
 
+  const radarSummary = useMemo(() => {
+    if (todayReminders.length > 0) return `今天有 ${todayReminders.length} 个提醒，建议先处理登录和搜索。`
+    if (weekReminders.length > 0) return `本周还有 ${weekReminders.length} 个关注项，可以按计划推进。`
+    return "当前没有紧急提醒，可以继续按计划推进。"
+  }, [todayReminders.length, weekReminders.length])
+
   return (
     <div className="space-y-6">
-      <section className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(360px,0.65fr)]">
-        <div className="surface-panel rounded-lg p-6">
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(360px,0.7fr)]">
+        <div className="rounded-xl border border-border bg-card p-6">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
             <div className="max-w-3xl">
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[hsl(var(--accent))]">
-                研发指挥中心
-              </p>
-              <h1 className="mt-3 text-3xl font-semibold tracking-normal text-foreground">
-                你好，{userName}
-              </h1>
-              <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
-                这里聚合今天要推进的计划、风险提醒和项目入口。优先处理会影响进入系统、上线节奏和知识沉淀的事项。
+              <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">研发工作台</p>
+              <h1 className="mt-2 text-4xl font-semibold tracking-normal">你好，{displayName}</h1>
+              <p className="mt-3 max-w-2xl text-base leading-7 text-muted-foreground">
+                优先处理会影响进入系统、上线节奏和知识沉淀的事项。今天看执行，本周看节奏。
               </p>
             </div>
-            <div className="w-full rounded-lg border border-border bg-secondary/50 p-4 lg:w-64">
-              <p className="text-xs text-muted-foreground">今日日期</p>
-              <p className="mt-2 text-sm font-medium text-foreground">{currentDate}</p>
-              <div className="mt-4 flex items-center gap-2 text-xs text-muted-foreground">
-                <ShieldCheck className="h-4 w-4 text-[hsl(var(--accent))]" />
-                <span>演示数据可直接预览，接入 Supabase 后自动切换真实数据。</span>
+            <div className="w-full rounded-lg border border-border bg-secondary/50 p-4 lg:w-72">
+              <p className="text-sm font-medium text-muted-foreground">今日日期</p>
+              <p className="mt-2 text-base font-medium">{currentDate}</p>
+              <div className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
+                <ShieldCheck className="h-4 w-4 text-emerald-500" />
+                <span>{adminMode ? "徐小美账号" : "演示数据"}</span>
               </div>
             </div>
           </div>
 
           <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <MetricCard icon={CalendarDays} label="今日推进" value={String(todayPlans.length)} hint="需要今天闭环" />
-            <MetricCard icon={AlertTriangle} label="高优先级" value={String(highPriorityCount)} hint="先处理阻塞项" />
-            <MetricCard icon={Clock3} label="本周计划" value={String(weekPlans.length)} hint="按节奏推进" />
-            <MetricCard icon={Gauge} label="平均进度" value={`${averageProgress}%`} hint={`${activeCount} 个未完成`} />
+            <MetricCard icon={CalendarDays} label="本周计划" value={String(weekPlans.length)} hint="按本周口径计算" />
+            <MetricCard icon={AlertTriangle} label="重要事项" value={String(importantCount)} hint="重要程度为重要" />
+            <MetricCard icon={Clock3} label="未完成" value={String(unfinishedCount)} hint="本周仍需推进" />
+            <MetricCard icon={Gauge} label="平均进度" value={`${averageProgress}%`} hint="按本周计划平均" />
           </div>
         </div>
 
-        <section className="surface-panel rounded-lg p-5">
+        <section className="rounded-xl border border-border bg-card p-5">
           <div className="flex items-start justify-between gap-4">
-            <div>
-              <p className="text-xs font-medium text-muted-foreground">AI 研发秘书</p>
-              <h2 className="mt-1 text-lg font-semibold">小美待办雷达</h2>
+            <div className="flex items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-full bg-emerald-600 text-white">
+                <Sparkles className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">AI 研发秘书</p>
+                <h2 className="mt-1 text-xl font-semibold">小美待办雷达</h2>
+              </div>
             </div>
-            <div className="flex h-9 w-9 items-center justify-center rounded-md border border-border bg-secondary text-[hsl(var(--accent))]">
-              <MessageSquareText className="h-4 w-4" />
-            </div>
+            <Link href="/ai-secretary" className="rounded-md border border-border px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground">
+              去对话
+            </Link>
           </div>
 
-          <div className="mt-5 space-y-3">
-            {reminders.length === 0 ? (
-              <DashboardEmpty
-                icon={CheckCircle2}
-                title="暂时没有风险提醒"
-                desc="当前没有逾期、严重 Bug 或周报候选提醒。"
-              />
-            ) : (
-              reminders.slice(0, 4).map((reminder) => (
-                <ReminderItem key={reminder.id} reminder={reminder} />
-              ))
-            )}
-          </div>
+          <p className="mt-4 rounded-lg bg-emerald-50 px-4 py-3 text-sm leading-6 text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-200">
+            {radarSummary}
+          </p>
+
+          <RadarList title="今日" reminders={todayReminders} emptyText="今日无紧急提醒" />
+          <RadarList title="本周" reminders={weekReminders} emptyText="本周暂无额外提醒" />
         </section>
       </section>
 
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
-        <section className="surface-panel rounded-lg p-5">
-          <SectionHeader
-            title="今日推进队列"
-            desc="按优先级处理最影响研发节奏的事项"
-            actionLabel="查看全部"
-            href="/plans"
-          />
+        <section className="rounded-xl border border-border bg-card p-5">
+          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+            <div>
+              <h2 className="text-xl font-semibold">推进队列</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {viewMode === "today" ? "今天要闭环或推进的事项" : "本周计划，今日事项不会被隐藏"}
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="flex rounded-lg border border-border bg-secondary p-0.5">
+                <button
+                  type="button"
+                  onClick={() => setViewMode("today")}
+                  className={cn("rounded-md px-3 py-1.5 text-sm font-medium transition-colors", viewMode === "today" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}
+                >
+                  今日
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode("week")}
+                  className={cn("rounded-md px-3 py-1.5 text-sm font-medium transition-colors", viewMode === "week" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}
+                >
+                  本周
+                </button>
+              </div>
+              <Link href="/plans" className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground">
+                查看全部
+                <ArrowUpRight className="h-4 w-4" />
+              </Link>
+            </div>
+          </div>
 
           <div className="mt-4 space-y-2">
-            {todayPlans.length === 0 ? (
-              <DashboardEmpty
-                icon={ListChecks}
-                title="今天还没有计划"
-                desc="可以先创建一个工作计划，把下一步行动放进队列。"
-              />
-            ) : (
-              todayPlans.slice(0, 6).map((plan) => (
-                <PlanRow key={plan.id} plan={plan} />
-              ))
-            )}
+            {shownPlans.map((plan) => (
+              <PlanRow key={plan.id} plan={plan} />
+            ))}
           </div>
         </section>
 
         <div className="space-y-4">
-          <section className="surface-panel rounded-lg p-5">
-            <SectionHeader title="快速捕获" desc="把临时事项先放进正确模块" />
+          <section className="rounded-xl border border-border bg-card p-5">
+            <h2 className="text-xl font-semibold">快速新增</h2>
+            <p className="mt-1 text-sm text-muted-foreground">把临时事项放进正确模块</p>
             <div className="mt-4 grid gap-2">
               {quickActions.map((action) => {
                 const Icon = action.icon
@@ -291,204 +272,114 @@ export default async function DashboardPage() {
                   <Link
                     key={action.href}
                     href={action.href}
-                    className="group flex items-center justify-between rounded-md border border-border bg-card px-3 py-3 text-sm transition-colors hover:border-[hsl(var(--accent)/0.45)] hover:bg-secondary/60"
+                    className="group flex items-center justify-between rounded-lg border border-border bg-background px-4 py-3 text-sm transition-colors hover:border-emerald-500/40 hover:bg-emerald-50 dark:hover:bg-emerald-950/20"
                   >
                     <span className="flex min-w-0 items-center gap-3">
-                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-secondary text-muted-foreground group-hover:text-[hsl(var(--accent))]">
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-secondary text-muted-foreground group-hover:text-emerald-600">
                         <Icon className="h-4 w-4" />
                       </span>
                       <span className="min-w-0">
-                        <span className="block font-medium text-foreground">{action.label}</span>
-                        <span className="mt-0.5 block truncate text-xs text-muted-foreground">{action.desc}</span>
+                        <span className="block text-base font-medium">{action.label}</span>
+                        <span className="mt-0.5 block truncate text-sm text-muted-foreground">{action.desc}</span>
                       </span>
                     </span>
-                    <Plus className="h-4 w-4 shrink-0 text-muted-foreground group-hover:text-[hsl(var(--accent))]" />
+                    <Plus className="h-4 w-4 shrink-0 text-muted-foreground group-hover:text-emerald-600" />
                   </Link>
                 )
               })}
             </div>
           </section>
-
-          <section className="surface-panel rounded-lg p-5">
-            <SectionHeader title="本周节奏" desc="避免计划漂移和临时事项失控" />
-            <div className="mt-4 space-y-3">
-              {weekPlans.length === 0 ? (
-                <DashboardEmpty
-                  icon={CalendarDays}
-                  title="本周还没有计划"
-                  desc="建议先把上线前必须完成的事项排进本周。"
-                />
-              ) : (
-                weekPlans.slice(0, 4).map((plan) => (
-                  <CompactPlan key={plan.id} plan={plan} />
-                ))
-              )}
-            </div>
-          </section>
         </div>
       </section>
 
-      <section className="surface-panel rounded-lg p-5">
-        <SectionHeader
-          title="项目沙箱"
-          desc="把想法、任务和知识按项目承载，避免信息散落"
-          actionLabel="进入项目"
-          href="/projects"
-        />
-        <div className="mt-4 grid gap-3 lg:grid-cols-3">
-          {projectCards.map((project) => {
-            const Icon = project.icon
-            return (
-              <Link
-                key={project.title}
-                href={project.href}
-                className="group rounded-lg border border-border bg-card p-4 transition-colors hover:border-[hsl(var(--accent)/0.45)] hover:bg-secondary/50"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <span className="flex h-10 w-10 items-center justify-center rounded-md bg-secondary text-muted-foreground group-hover:text-[hsl(var(--accent))]">
-                    <Icon className="h-4 w-4" />
-                  </span>
-                  <span className="rounded-md border border-border bg-background px-2 py-1 text-[11px] text-muted-foreground">
-                    {project.metric}
-                  </span>
-                </div>
-                <div className="mt-4">
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-semibold text-foreground">{project.title}</h3>
-                    <ArrowUpRight className="h-4 w-4 text-muted-foreground transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-[hsl(var(--accent))]" />
-                  </div>
-                  <p className="mt-2 min-h-12 text-sm leading-6 text-muted-foreground">{project.desc}</p>
-                </div>
-                <div className="mt-5 flex items-center gap-2 text-xs text-muted-foreground">
-                  <GitBranch className="h-3.5 w-3.5" />
-                  <span>{project.status}</span>
-                </div>
-              </Link>
-            )
-          })}
+      <section className="rounded-xl border border-border bg-card p-5">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-xl font-semibold">项目总览</h2>
+            <p className="mt-1 text-sm text-muted-foreground">替代无用的项目沙箱，直接进入常用工作区</p>
+          </div>
+          <Link href="/projects" className="inline-flex items-center gap-1 rounded-lg border border-border px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground">
+            管理项目
+            <ArrowUpRight className="h-4 w-4" />
+          </Link>
+        </div>
+
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <ProjectTile icon={FolderKanban} title="XMZ OS" desc="个人研发工作台" href="/projects" />
+          <ProjectTile icon={ListChecks} title="工作计划" desc="需求、Bug、自定义计划" href="/plans" />
+          <ProjectTile icon={FileText} title="报表总结" desc="日报、周报、月报、年报" href="/reports" />
+          <ProjectTile icon={MessageSquareText} title="小美待办雷达" desc="提醒和对话入口" href="/ai-secretary" />
         </div>
       </section>
     </div>
   )
 }
 
-function MetricCard({
-  icon: Icon,
-  label,
-  value,
-  hint,
-}: {
-  icon: IconComponent
-  label: string
-  value: string
-  hint: string
-}) {
+function MetricCard({ icon: Icon, label, value, hint }: { icon: IconComponent; label: string; value: string; hint: string }) {
   return (
-    <div className="rounded-lg border border-border bg-card p-4">
+    <div className="rounded-lg border border-border bg-background p-4">
       <div className="flex items-center justify-between gap-3">
-        <p className="text-xs text-muted-foreground">{label}</p>
-        <Icon className="h-4 w-4 text-[hsl(var(--accent))]" />
+        <p className="text-sm font-medium text-muted-foreground">{label}</p>
+        <Icon className="h-5 w-5 text-emerald-600" />
       </div>
-      <p className="mt-3 text-2xl font-semibold tracking-normal text-foreground">{value}</p>
-      <p className="mt-1 text-xs text-muted-foreground">{hint}</p>
-    </div>
-  )
-}
-
-function SectionHeader({
-  title,
-  desc,
-  actionLabel,
-  href,
-}: {
-  title: string
-  desc: string
-  actionLabel?: string
-  href?: string
-}) {
-  return (
-    <div className="flex items-start justify-between gap-4">
-      <div>
-        <h2 className="text-lg font-semibold">{title}</h2>
-        <p className="mt-1 text-sm text-muted-foreground">{desc}</p>
-      </div>
-      {href && actionLabel && (
-        <Link
-          href={href}
-          className="inline-flex shrink-0 items-center gap-1 rounded-md border border-border bg-card px-3 py-2 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
-        >
-          {actionLabel}
-          <ArrowUpRight className="h-3.5 w-3.5" />
-        </Link>
-      )}
+      <p className="mt-3 text-3xl font-semibold tracking-normal">{value}</p>
+      <p className="mt-1 text-sm text-muted-foreground">{hint}</p>
     </div>
   )
 }
 
 function PlanRow({ plan }: { plan: PlanLike }) {
   const type = getTypeMeta(plan.type)
-  const priority = getPriorityMeta(plan.priority)
+  const priority = getPriorityMeta(plan.priority, plan.status)
   const progress = normalizeProgress(plan.progress)
 
   return (
-    <div className="group grid gap-4 rounded-lg border border-border bg-card p-4 transition-colors hover:border-[hsl(var(--accent)/0.45)] hover:bg-secondary/40 lg:grid-cols-[minmax(0,1fr)_190px]">
+    <div className="grid gap-4 rounded-lg border border-border bg-background p-4 transition-colors hover:border-emerald-500/40 lg:grid-cols-[minmax(0,1fr)_220px]">
       <div className="min-w-0">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className={cn("rounded-md px-2 py-1 text-[11px] font-medium", type.className)}>
-              {type.label}
-            </span>
-            <span className={cn("rounded-md px-2 py-1 text-[11px] font-medium", priority.className)}>
-              {priority.label}
-            </span>
-          </div>
-          <PlanStatusSelect planId={plan.id} type={plan.type} status={plan.status} progress={plan.progress} />
+        <div className="flex flex-wrap items-center gap-2">
+          <span className={cn("rounded-md px-2.5 py-1 text-xs font-medium", type.className)}>{type.label}</span>
+          <span className={cn("rounded-md px-2.5 py-1 text-xs font-medium", priority.className)}>{priority.label}</span>
         </div>
-        <Link href={`/plans/${plan.id}`} className="mt-3 block truncate text-sm font-semibold text-foreground hover:text-[hsl(var(--accent))]">
+        <Link href={`/plans/${plan.id}`} className="mt-3 block truncate text-base font-semibold hover:text-emerald-600">
           {plan.title}
         </Link>
-        {plan.description && (
-          <p className="mt-1 line-clamp-2 text-sm leading-6 text-muted-foreground">{plan.description}</p>
-        )}
+        {plan.description && <p className="mt-1 line-clamp-2 text-sm leading-6 text-muted-foreground">{plan.description}</p>}
       </div>
       <div className="flex flex-col justify-between gap-3">
-        <div className="flex items-center justify-between text-xs text-muted-foreground">
-          <span>{plan.due_date ? formatDueDate(plan.due_date) : "未设截止"}</span>
-          <span>{progress}%</span>
+        <div className="flex items-center justify-between gap-3">
+          <PlanStatusSelect planId={plan.id} type={plan.type} status={plan.status} priority={plan.priority} progress={plan.progress} />
+          <span className="text-sm text-muted-foreground">{plan.due_date || "未设截止"}</span>
         </div>
-        <div className="h-2 rounded-full bg-secondary">
-          <div
-            className="h-full rounded-full bg-[hsl(var(--accent))]"
-            style={{ width: `${progress}%` }}
-          />
+        <div>
+          <div className="mb-1 flex items-center justify-between text-xs text-muted-foreground">
+            <span>进度</span>
+            <span>{progress}%</span>
+          </div>
+          <div className="h-2 rounded-full bg-secondary">
+            <div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${progress}%` }} />
+          </div>
         </div>
       </div>
     </div>
   )
 }
 
-function CompactPlan({ plan }: { plan: PlanLike }) {
-  const priority = getPriorityMeta(plan.priority)
-  const progress = normalizeProgress(plan.progress)
-
+function RadarList({ title, reminders, emptyText }: { title: string; reminders: ReminderLike[]; emptyText: string }) {
   return (
-    <Link
-      href={`/plans/${plan.id}`}
-      className="block rounded-md border border-border bg-card p-3 transition-colors hover:border-[hsl(var(--accent)/0.45)] hover:bg-secondary/50"
-    >
-      <div className="flex items-center justify-between gap-3">
-        <p className="min-w-0 truncate text-sm font-medium">{plan.title}</p>
-        <span className={cn("shrink-0 rounded-md px-2 py-1 text-[11px] font-medium", priority.className)}>
-          {priority.shortLabel}
-        </span>
-      </div>
-      <div className="mt-3 flex items-center gap-3">
-        <div className="h-1.5 flex-1 rounded-full bg-secondary">
-          <div className="h-full rounded-full bg-[hsl(var(--accent))]" style={{ width: `${progress}%` }} />
+    <div className="mt-5">
+      <p className="mb-3 text-sm font-semibold text-muted-foreground">{title}</p>
+      {reminders.length === 0 ? (
+        <div className="rounded-lg border border-dashed border-border py-6 text-center text-sm text-muted-foreground">
+          {emptyText}
         </div>
-        <span className="w-9 text-right text-xs text-muted-foreground">{progress}%</span>
-      </div>
-    </Link>
+      ) : (
+        <div className="space-y-2">
+          {reminders.map((reminder) => (
+            <ReminderItem key={reminder.id} reminder={reminder} />
+          ))}
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -497,56 +388,28 @@ function ReminderItem({ reminder }: { reminder: ReminderLike }) {
   const Icon = meta.icon
 
   return (
-    <div className="rounded-lg border border-border bg-card p-4">
+    <div className="rounded-lg border border-border bg-background p-3">
       <div className="flex items-start gap-3">
-        <span className={cn("mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md", meta.className)}>
+        <span className={cn("mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg", meta.className)}>
           <Icon className="h-4 w-4" />
         </span>
         <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="text-sm font-medium text-foreground">{reminder.title}</p>
-            <span className="rounded-md border border-border bg-background px-2 py-0.5 text-[11px] text-muted-foreground">
-              {meta.label}
-            </span>
-          </div>
-          {reminder.description && (
-            <p className="mt-1 text-sm leading-6 text-muted-foreground">{reminder.description}</p>
-          )}
+          <p className="text-sm font-semibold">{reminder.title}</p>
+          {reminder.description && <p className="mt-1 text-sm leading-6 text-muted-foreground">{reminder.description}</p>}
         </div>
       </div>
     </div>
   )
 }
 
-function DashboardEmpty({
-  icon: Icon,
-  title,
-  desc,
-}: {
-  icon: IconComponent
-  title: string
-  desc: string
-}) {
+function ProjectTile({ icon: Icon, title, desc, href }: { icon: IconComponent; title: string; desc: string; href: string }) {
   return (
-    <div className="rounded-lg border border-dashed border-border bg-card p-6 text-center">
-      <Icon className="mx-auto h-6 w-6 text-muted-foreground" />
-      <p className="mt-3 text-sm font-medium text-foreground">{title}</p>
-      <p className="mt-1 text-sm text-muted-foreground">{desc}</p>
-    </div>
+    <Link href={href} className="rounded-lg border border-border bg-background p-4 transition-colors hover:border-emerald-500/40">
+      <Icon className="h-6 w-6 text-emerald-600" />
+      <h3 className="mt-4 text-base font-semibold">{title}</h3>
+      <p className="mt-1 text-sm leading-6 text-muted-foreground">{desc}</p>
+    </Link>
   )
-}
-
-function mergePlans(todayPlans: PlanLike[], weekPlans: PlanLike[]) {
-  const map = new Map<string, PlanLike>()
-  for (const plan of todayPlans) {
-    map.set(plan.id, plan)
-  }
-  for (const plan of weekPlans) {
-    if (!map.has(plan.id)) {
-      map.set(plan.id, plan)
-    }
-  }
-  return Array.from(map.values())
 }
 
 function getAverageProgress(plans: PlanLike[]) {
@@ -570,106 +433,22 @@ function isFinished(status: PlanLike["status"]) {
 }
 
 function getTypeMeta(type: PlanLike["type"]) {
-  if (type === "bug") {
-    return {
-      label: "Bug",
-      className: "bg-red-50 text-red-700 dark:bg-red-950/50 dark:text-red-300",
-    }
-  }
-
-  if (type === "requirement") {
-    return {
-      label: "需求",
-      className: "bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300",
-    }
-  }
-
-  return {
-    label: "计划",
-    className: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300",
-  }
+  if (type === "bug") return { label: "Bug", className: "bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-400" }
+  if (type === "requirement") return { label: "需求", className: "bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400" }
+  return { label: "自定义", className: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300" }
 }
 
-function getPriorityMeta(priority: PlanLike["priority"]) {
-  if (priority === "high") {
-    return {
-      label: "高优先级",
-      shortLabel: "高",
-      className: "bg-red-50 text-red-700 dark:bg-red-950/50 dark:text-red-300",
-    }
-  }
-
-  if (priority === "medium") {
-    return {
-      label: "中优先级",
-      shortLabel: "中",
-      className: "bg-amber-50 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300",
-    }
-  }
-
-  return {
-    label: "低优先级",
-    shortLabel: "低",
-    className: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300",
-  }
+function getPriorityMeta(priority?: string | null, status?: string | null) {
+  if (priority === "high" || status === "重要") return { label: "重要", className: "bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-400" }
+  if (priority === "low" || status === "低") return { label: "低", className: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300" }
+  return { label: "中等", className: "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400" }
 }
 
 function getReminderMeta(type: ReminderLike["reminder_type"]) {
-  if (type === "bug_severe") {
-    return {
-      label: "严重 Bug",
-      icon: Bug,
-      className: "bg-red-50 text-red-700 dark:bg-red-950/50 dark:text-red-300",
-    }
-  }
-
-  if (type === "plan_overdue") {
-    return {
-      label: "计划逾期",
-      icon: AlertTriangle,
-      className: "bg-amber-50 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300",
-    }
-  }
-
-  if (type === "important_plan") {
-    return {
-      label: "重要计划",
-      icon: AlertTriangle,
-      className: "bg-red-50 text-red-700 dark:bg-red-950/50 dark:text-red-300",
-    }
-  }
-
-  if (type === "plan_due_soon") {
-    return {
-      label: "即将到期",
-      icon: Clock3,
-      className: "bg-amber-50 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300",
-    }
-  }
-
-  if (type === "weekly_candidate") {
-    return {
-      label: "周报候选",
-      icon: FileText,
-      className: "bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300",
-    }
-  }
-
-  return {
-    label: "自定义提醒",
-    icon: MessageSquareText,
-    className: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300",
-  }
-}
-
-function formatDueDate(value: string) {
-  if (value === "今天" || value.startsWith("周")) return value
-
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
-
-  return date.toLocaleDateString("zh-CN", {
-    month: "short",
-    day: "numeric",
-  })
+  if (type === "bug_severe") return { icon: Bug, className: "bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-400" }
+  if (type === "plan_overdue") return { icon: AlertTriangle, className: "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400" }
+  if (type === "important_plan") return { icon: AlertTriangle, className: "bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-400" }
+  if (type === "plan_due_soon") return { icon: Clock3, className: "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400" }
+  if (type === "weekly_candidate") return { icon: FileText, className: "bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400" }
+  return { icon: CheckCircle2, className: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400" }
 }
