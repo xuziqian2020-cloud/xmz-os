@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react"
 import Link from "next/link"
 
+const LOCAL_PROMPTS_KEY = "xmz-os-local-prompts"
+
 export default function PromptsPage() {
   const [prompts, setPrompts] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -11,7 +13,9 @@ export default function PromptsPage() {
 
   useEffect(() => {
     fetch("/api/prompts").then(r => r.json()).then(d => {
-      if (Array.isArray(d)) setPrompts(d)
+      const localPrompts = readLocalPrompts()
+      if (Array.isArray(d)) setPrompts([...localPrompts, ...d])
+      else setPrompts(localPrompts)
     }).finally(() => setLoading(false))
   }, [])
 
@@ -77,4 +81,13 @@ export default function PromptsPage() {
       )}
     </div>
   )
+}
+
+function readLocalPrompts() {
+  try {
+    const data = window.localStorage.getItem(LOCAL_PROMPTS_KEY)
+    return data ? JSON.parse(data) : []
+  } catch {
+    return []
+  }
 }

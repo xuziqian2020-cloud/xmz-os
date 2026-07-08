@@ -1,4 +1,4 @@
--- XMZ OS 初始数据库 Schema
+﻿-- XMZ OS 初始数据库 Schema
 -- 包含 14 张业务表 + RLS 策略
 
 -- ============================================
@@ -20,10 +20,11 @@ CREATE TABLE IF NOT EXISTS projects (
   deleted_at    TIMESTAMPTZ
 );
 
-CREATE INDEX idx_projects_user_id ON projects(user_id);
-CREATE INDEX idx_projects_deleted_at ON projects(deleted_at);
+CREATE INDEX IF NOT EXISTS idx_projects_user_id ON projects(user_id);
+CREATE INDEX IF NOT EXISTS idx_projects_deleted_at ON projects(deleted_at);
 
 ALTER TABLE projects ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "用户只能访问自己的项目" ON projects;
 CREATE POLICY "用户只能访问自己的项目" ON projects FOR ALL
   USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 
@@ -59,16 +60,17 @@ CREATE TABLE IF NOT EXISTS work_plans (
   deleted_at            TIMESTAMPTZ
 );
 
-CREATE INDEX idx_work_plans_user_id ON work_plans(user_id);
-CREATE INDEX idx_work_plans_project_id ON work_plans(project_id);
-CREATE INDEX idx_work_plans_type ON work_plans(type);
-CREATE INDEX idx_work_plans_status ON work_plans(status);
-CREATE INDEX idx_work_plans_priority ON work_plans(priority);
-CREATE INDEX idx_work_plans_due_date ON work_plans(due_date);
-CREATE INDEX idx_work_plans_deleted_at ON work_plans(deleted_at);
-CREATE INDEX idx_work_plans_bug_severity ON work_plans(bug_severity) WHERE type = 'bug';
+CREATE INDEX IF NOT EXISTS idx_work_plans_user_id ON work_plans(user_id);
+CREATE INDEX IF NOT EXISTS idx_work_plans_project_id ON work_plans(project_id);
+CREATE INDEX IF NOT EXISTS idx_work_plans_type ON work_plans(type);
+CREATE INDEX IF NOT EXISTS idx_work_plans_status ON work_plans(status);
+CREATE INDEX IF NOT EXISTS idx_work_plans_priority ON work_plans(priority);
+CREATE INDEX IF NOT EXISTS idx_work_plans_due_date ON work_plans(due_date);
+CREATE INDEX IF NOT EXISTS idx_work_plans_deleted_at ON work_plans(deleted_at);
+CREATE INDEX IF NOT EXISTS idx_work_plans_bug_severity ON work_plans(bug_severity) WHERE type = 'bug';
 
 ALTER TABLE work_plans ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "用户只能访问自己的工作计划" ON work_plans;
 CREATE POLICY "用户只能访问自己的工作计划" ON work_plans FOR ALL
   USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 
@@ -89,11 +91,12 @@ CREATE TABLE IF NOT EXISTS knowledge_documents (
   deleted_at  TIMESTAMPTZ
 );
 
-CREATE INDEX idx_knowledge_user_id ON knowledge_documents(user_id);
-CREATE INDEX idx_knowledge_project_id ON knowledge_documents(project_id);
-CREATE INDEX idx_knowledge_deleted_at ON knowledge_documents(deleted_at);
+CREATE INDEX IF NOT EXISTS idx_knowledge_user_id ON knowledge_documents(user_id);
+CREATE INDEX IF NOT EXISTS idx_knowledge_project_id ON knowledge_documents(project_id);
+CREATE INDEX IF NOT EXISTS idx_knowledge_deleted_at ON knowledge_documents(deleted_at);
 
 ALTER TABLE knowledge_documents ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "用户只能访问自己的知识库" ON knowledge_documents;
 CREATE POLICY "用户只能访问自己的知识库" ON knowledge_documents FOR ALL
   USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 
@@ -117,11 +120,12 @@ CREATE TABLE IF NOT EXISTS prompt_templates (
   deleted_at  TIMESTAMPTZ
 );
 
-CREATE INDEX idx_prompts_user_id ON prompt_templates(user_id);
-CREATE INDEX idx_prompts_project_id ON prompt_templates(project_id);
-CREATE INDEX idx_prompts_deleted_at ON prompt_templates(deleted_at);
+CREATE INDEX IF NOT EXISTS idx_prompts_user_id ON prompt_templates(user_id);
+CREATE INDEX IF NOT EXISTS idx_prompts_project_id ON prompt_templates(project_id);
+CREATE INDEX IF NOT EXISTS idx_prompts_deleted_at ON prompt_templates(deleted_at);
 
 ALTER TABLE prompt_templates ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "用户只能访问自己的Prompt" ON prompt_templates;
 CREATE POLICY "用户只能访问自己的Prompt" ON prompt_templates FOR ALL
   USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 
@@ -142,11 +146,12 @@ CREATE TABLE IF NOT EXISTS process_diagrams (
   deleted_at      TIMESTAMPTZ
 );
 
-CREATE INDEX idx_diagrams_user_id ON process_diagrams(user_id);
-CREATE INDEX idx_diagrams_project_id ON process_diagrams(project_id);
-CREATE INDEX idx_diagrams_deleted_at ON process_diagrams(deleted_at);
+CREATE INDEX IF NOT EXISTS idx_diagrams_user_id ON process_diagrams(user_id);
+CREATE INDEX IF NOT EXISTS idx_diagrams_project_id ON process_diagrams(project_id);
+CREATE INDEX IF NOT EXISTS idx_diagrams_deleted_at ON process_diagrams(deleted_at);
 
 ALTER TABLE process_diagrams ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "用户只能访问自己的流程图" ON process_diagrams;
 CREATE POLICY "用户只能访问自己的流程图" ON process_diagrams FOR ALL
   USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 
@@ -167,11 +172,12 @@ CREATE TABLE IF NOT EXISTS files (
   deleted_at   TIMESTAMPTZ
 );
 
-CREATE INDEX idx_files_user_id ON files(user_id);
-CREATE INDEX idx_files_project_id ON files(project_id);
-CREATE INDEX idx_files_deleted_at ON files(deleted_at);
+CREATE INDEX IF NOT EXISTS idx_files_user_id ON files(user_id);
+CREATE INDEX IF NOT EXISTS idx_files_project_id ON files(project_id);
+CREATE INDEX IF NOT EXISTS idx_files_deleted_at ON files(deleted_at);
 
 ALTER TABLE files ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "用户只能访问自己的文件" ON files;
 CREATE POLICY "用户只能访问自己的文件" ON files FOR ALL
   USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 
@@ -192,11 +198,12 @@ CREATE TABLE IF NOT EXISTS ideas (
   deleted_at  TIMESTAMPTZ
 );
 
-CREATE INDEX idx_ideas_user_id ON ideas(user_id);
-CREATE INDEX idx_ideas_project_id ON ideas(project_id);
-CREATE INDEX idx_ideas_deleted_at ON ideas(deleted_at);
+CREATE INDEX IF NOT EXISTS idx_ideas_user_id ON ideas(user_id);
+CREATE INDEX IF NOT EXISTS idx_ideas_project_id ON ideas(project_id);
+CREATE INDEX IF NOT EXISTS idx_ideas_deleted_at ON ideas(deleted_at);
 
 ALTER TABLE ideas ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "用户只能访问自己的灵感" ON ideas;
 CREATE POLICY "用户只能访问自己的灵感" ON ideas FOR ALL
   USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 
@@ -217,10 +224,11 @@ CREATE TABLE IF NOT EXISTS ai_providers (
   deleted_at    TIMESTAMPTZ
 );
 
-CREATE INDEX idx_ai_providers_user_id ON ai_providers(user_id);
-CREATE INDEX idx_ai_providers_deleted_at ON ai_providers(deleted_at);
+CREATE INDEX IF NOT EXISTS idx_ai_providers_user_id ON ai_providers(user_id);
+CREATE INDEX IF NOT EXISTS idx_ai_providers_deleted_at ON ai_providers(deleted_at);
 
 ALTER TABLE ai_providers ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "用户只能访问自己的AI配置" ON ai_providers;
 CREATE POLICY "用户只能访问自己的AI配置" ON ai_providers FOR ALL
   USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 
@@ -242,10 +250,11 @@ CREATE TABLE IF NOT EXISTS ai_operation_logs (
   created_at    TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX idx_ai_logs_user_id ON ai_operation_logs(user_id);
-CREATE INDEX idx_ai_logs_created_at ON ai_operation_logs(created_at);
+CREATE INDEX IF NOT EXISTS idx_ai_logs_user_id ON ai_operation_logs(user_id);
+CREATE INDEX IF NOT EXISTS idx_ai_logs_created_at ON ai_operation_logs(created_at);
 
 ALTER TABLE ai_operation_logs ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "用户只能访问自己的AI日志" ON ai_operation_logs;
 CREATE POLICY "用户只能访问自己的AI日志" ON ai_operation_logs FOR ALL
   USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 
@@ -264,10 +273,11 @@ CREATE TABLE IF NOT EXISTS tool_operation_logs (
   created_at     TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX idx_tool_logs_user_id ON tool_operation_logs(user_id);
-CREATE INDEX idx_tool_logs_created_at ON tool_operation_logs(created_at);
+CREATE INDEX IF NOT EXISTS idx_tool_logs_user_id ON tool_operation_logs(user_id);
+CREATE INDEX IF NOT EXISTS idx_tool_logs_created_at ON tool_operation_logs(created_at);
 
 ALTER TABLE tool_operation_logs ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "用户只能访问自己的工具日志" ON tool_operation_logs;
 CREATE POLICY "用户只能访问自己的工具日志" ON tool_operation_logs FOR ALL
   USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 
@@ -288,11 +298,12 @@ CREATE TABLE IF NOT EXISTS smart_reminders (
   created_at      TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX idx_reminders_user_id ON smart_reminders(user_id);
-CREATE INDEX idx_reminders_is_dismissed ON smart_reminders(is_dismissed);
-CREATE INDEX idx_reminders_created_at ON smart_reminders(created_at);
+CREATE INDEX IF NOT EXISTS idx_reminders_user_id ON smart_reminders(user_id);
+CREATE INDEX IF NOT EXISTS idx_reminders_is_dismissed ON smart_reminders(is_dismissed);
+CREATE INDEX IF NOT EXISTS idx_reminders_created_at ON smart_reminders(created_at);
 
 ALTER TABLE smart_reminders ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "用户只能访问自己的提醒" ON smart_reminders;
 CREATE POLICY "用户只能访问自己的提醒" ON smart_reminders FOR ALL
   USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 
@@ -310,11 +321,12 @@ CREATE TABLE IF NOT EXISTS relation_links (
   created_at    TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX idx_relations_user_id ON relation_links(user_id);
-CREATE INDEX idx_relations_source ON relation_links(source_type, source_id);
-CREATE INDEX idx_relations_target ON relation_links(target_type, target_id);
+CREATE INDEX IF NOT EXISTS idx_relations_user_id ON relation_links(user_id);
+CREATE INDEX IF NOT EXISTS idx_relations_source ON relation_links(source_type, source_id);
+CREATE INDEX IF NOT EXISTS idx_relations_target ON relation_links(target_type, target_id);
 
 ALTER TABLE relation_links ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "用户只能访问自己的关系" ON relation_links;
 CREATE POLICY "用户只能访问自己的关系" ON relation_links FOR ALL
   USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 
@@ -333,10 +345,11 @@ CREATE TABLE IF NOT EXISTS report_templates (
   deleted_at  TIMESTAMPTZ
 );
 
-CREATE INDEX idx_report_templates_user_id ON report_templates(user_id);
-CREATE INDEX idx_report_templates_deleted_at ON report_templates(deleted_at);
+CREATE INDEX IF NOT EXISTS idx_report_templates_user_id ON report_templates(user_id);
+CREATE INDEX IF NOT EXISTS idx_report_templates_deleted_at ON report_templates(deleted_at);
 
 ALTER TABLE report_templates ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "用户只能访问自己的报表模板" ON report_templates;
 CREATE POLICY "用户只能访问自己的报表模板" ON report_templates FOR ALL
   USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 
@@ -354,10 +367,11 @@ CREATE TABLE IF NOT EXISTS report_histories (
   created_at  TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX idx_report_histories_user_id ON report_histories(user_id);
-CREATE INDEX idx_report_histories_created_at ON report_histories(created_at);
+CREATE INDEX IF NOT EXISTS idx_report_histories_user_id ON report_histories(user_id);
+CREATE INDEX IF NOT EXISTS idx_report_histories_created_at ON report_histories(created_at);
 
 ALTER TABLE report_histories ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "用户只能访问自己的报表历史" ON report_histories;
 CREATE POLICY "用户只能访问自己的报表历史" ON report_histories FOR ALL
   USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 

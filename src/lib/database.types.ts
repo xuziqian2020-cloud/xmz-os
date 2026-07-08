@@ -26,7 +26,7 @@ export type AIProviderType = "openai" | "deepseek" | "claude" | "qwen" | "custom
 export type ReminderType = "bug_severe" | "plan_overdue" | "weekly_candidate" | "custom"
 
 export type ReportType =
-  | "weekly" | "monthly" | "yearly" | "project_summary" | "bug_review"
+  | "daily" | "weekly" | "monthly" | "yearly" | "project_summary" | "bug_review"
 
 // ============================================
 // 表行类型

@@ -1,8 +1,9 @@
 "use client"
 
-import { FormEvent, useState } from "react"
+import { FormEvent, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { ArrowRight, CheckCircle2, LockKeyhole, Mail, ShieldCheck } from "lucide-react"
+import { ADMIN_REMEMBER_FLAG, REMEMBER_CREDENTIALS_KEY, isAdminLoginName, normalizeLoginName } from "@/lib/auth/local-admin"
 import { signInOrSignUpWithPassword } from "@/lib/auth/password-login"
 import { createClient } from "@/lib/supabase/client"
 import { isDemoMode } from "@/lib/supabase/demo"
@@ -17,8 +18,24 @@ export default function LoginPage() {
   const [error, setError] = useState("")
   const [notice, setNotice] = useState("")
   const [configError, setConfigError] = useState(false)
+  const [rememberPassword, setRememberPassword] = useState(false)
 
-  const canSubmit = email.trim().length > 0 && password.length >= 6 && !loading
+  const isAdminLogin = isAdminLoginName(email)
+  const canSubmit = email.trim().length > 0 && (isAdminLogin || password.length >= 6) && !loading
+
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(REMEMBER_CREDENTIALS_KEY)
+      if (!saved) return
+
+      const parsed = JSON.parse(saved) as { email?: string; password?: string }
+      if (parsed.email) setEmail(parsed.email)
+      if (parsed.password) setPassword(parsed.password)
+      setRememberPassword(true)
+    } catch {
+      window.localStorage.removeItem(REMEMBER_CREDENTIALS_KEY)
+    }
+  }, [])
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -29,6 +46,23 @@ export default function LoginPage() {
     setNotice("")
 
     try {
+      if (isAdminLogin) {
+        const res = await fetch("/api/auth/admin-login", { method: "POST" })
+        const data = await res.json()
+
+        if (!res.ok || !data.ok) {
+          setError(data.error || "管理员免密登录失败，请检查 Supabase 设置。")
+          return
+        }
+
+        window.localStorage.setItem(ADMIN_REMEMBER_FLAG, "1")
+        window.localStorage.removeItem(REMEMBER_CREDENTIALS_KEY)
+        setNotice("管理员免密登录成功，正在进入工作台。")
+        router.push("/dashboard")
+        router.refresh()
+        return
+      }
+
       if (demoMode) {
         router.push("/dashboard")
         router.refresh()
@@ -36,9 +70,19 @@ export default function LoginPage() {
       }
 
       const supabase = createClient()
-      const result = await signInOrSignUpWithPassword(supabase, email, password)
+      const normalizedEmail = normalizeLoginName(email)
+      const result = await signInOrSignUpWithPassword(supabase, normalizedEmail, password)
 
       if (result.ok) {
+        if (rememberPassword) {
+          window.localStorage.setItem(
+            REMEMBER_CREDENTIALS_KEY,
+            JSON.stringify({ email: normalizedEmail, password })
+          )
+        } else {
+          window.localStorage.removeItem(REMEMBER_CREDENTIALS_KEY)
+        }
+        window.localStorage.removeItem(ADMIN_REMEMBER_FLAG)
         setNotice(result.mode === "signed-up" ? "账号已创建，正在进入工作台。" : "登录成功，正在进入工作台。")
         router.push("/dashboard")
         router.refresh()
@@ -137,14 +181,14 @@ export default function LoginPage() {
               <label className="block">
                 <span className="mb-2 flex items-center gap-2 text-sm font-medium text-foreground">
                   <Mail className="h-4 w-4 text-muted-foreground" />
-                  邮箱地址
+                  邮箱或管理员账号
                 </span>
                 <input
-                  type="email"
+                  type="text"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="name@example.com"
-                  autoComplete="email"
+                  placeholder="name@example.com 或 admin"
+                  autoComplete="username"
                   className="h-11 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none transition-colors placeholder:text-muted-foreground/55 focus:border-accent focus:ring-2 focus:ring-accent/18"
                 />
               </label>
@@ -158,9 +202,24 @@ export default function LoginPage() {
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="至少 6 位密码"
+                  placeholder={isAdminLogin ? "admin 可不填密码" : "至少 6 位密码"}
                   autoComplete="current-password"
+                  disabled={isAdminLogin}
                   className="h-11 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none transition-colors placeholder:text-muted-foreground/55 focus:border-accent focus:ring-2 focus:ring-accent/18"
+                />
+              </label>
+
+              <label className="flex items-center justify-between gap-3 rounded-lg border border-border bg-secondary/40 px-3 py-2.5 text-sm">
+                <span>
+                  <span className="block font-medium text-foreground">记住密码</span>
+                  <span className="mt-0.5 block text-xs text-muted-foreground">仅保存在当前浏览器，admin 模式不会保存密码。</span>
+                </span>
+                <input
+                  type="checkbox"
+                  checked={rememberPassword}
+                  onChange={(e) => setRememberPassword(e.target.checked)}
+                  disabled={isAdminLogin}
+                  className="h-4 w-4 accent-[hsl(var(--accent))]"
                 />
               </label>
 
@@ -182,7 +241,7 @@ export default function LoginPage() {
                 disabled={!canSubmit}
                 className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-foreground px-4 text-sm font-semibold text-background shadow-sm transition-all hover:translate-y-[-1px] hover:opacity-95 active:translate-y-0 disabled:pointer-events-none disabled:opacity-45"
               >
-                {loading ? "正在处理" : demoMode ? "进入演示工作台" : "登录或首次注册"}
+                {loading ? "正在处理" : isAdminLogin ? "管理员免密登录" : demoMode ? "进入演示工作台" : "登录或首次注册"}
                 <ArrowRight className="h-4 w-4" />
               </button>
             </form>
@@ -199,7 +258,7 @@ export default function LoginPage() {
 
             <div className="mt-7 border-t border-border pt-5">
               <p className="text-xs leading-5 text-muted-foreground">
-                首次登录会自动注册。再次登录时，如果邮箱已存在，系统只接受匹配的密码。
+                首次登录会自动注册。再次登录时，如果邮箱已存在，系统只接受匹配的密码。输入 admin 可进入管理员免密模式。
               </p>
             </div>
           </div>

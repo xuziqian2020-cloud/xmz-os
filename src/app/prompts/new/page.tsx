@@ -1,6 +1,8 @@
 "use client"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
+
+const LOCAL_PROMPTS_KEY = "xmz-os-local-prompts"
 
 export default function NewPromptPage() {
   const router = useRouter()
@@ -9,8 +11,16 @@ export default function NewPromptPage() {
   const [scene, setScene] = useState("")
   const [modelScope, setModelScope] = useState("")
   const [tags, setTags] = useState("")
+  const [projectId, setProjectId] = useState("")
+  const [projects, setProjects] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
+
+  useEffect(() => {
+    fetch("/api/projects").then(r => r.json()).then(d => {
+      if (Array.isArray(d)) setProjects(d)
+    }).catch(() => {})
+  }, [])
 
   const handleSubmit = async () => {
     if (!title.trim() || !content.trim()) return
@@ -21,11 +31,31 @@ export default function NewPromptPage() {
       body: JSON.stringify({
         title: title.trim(), content: content.trim(),
         scene: scene || null, model_scope: modelScope || null,
+        project_id: projectId || null,
         tags: tags ? tags.split(",").map(s => s.trim()).filter(Boolean) : null,
       }),
     })
     if (res.ok) { router.push("/prompts"); router.refresh() }
-    else { setError((await res.json()).error || "创建失败"); setLoading(false) }
+    else {
+      const err = await res.json()
+      saveLocalPrompt({
+        id: `local-${Date.now()}`,
+        title: title.trim(),
+        content: content.trim(),
+        scene: scene || null,
+        model_scope: modelScope || null,
+        project_id: projectId || null,
+        tags: tags ? tags.split(",").map(s => s.trim()).filter(Boolean) : null,
+        version: "local",
+        created_at: new Date().toISOString(),
+      })
+      setError(`${err.error || "后端保存失败"}；已先保存到浏览器本地，正式上线请补齐 Supabase 表。`)
+      setTimeout(() => {
+        router.push("/prompts")
+        router.refresh()
+      }, 900)
+      setLoading(false)
+    }
   }
 
   return (
@@ -53,6 +83,12 @@ export default function NewPromptPage() {
         <div><label className="mb-1.5 block text-xs font-medium text-muted-foreground">标签（逗号分隔）</label>
           <input value={tags} onChange={e => setTags(e.target.value)} placeholder="如：开发, 调试, 文档" className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary/30" />
         </div>
+        <div><label className="mb-1.5 block text-xs font-medium text-muted-foreground">所属项目</label>
+          <select value={projectId} onChange={e => setProjectId(e.target.value)} className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary/30">
+            <option value="">不限</option>
+            {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+        </div>
         <div><label className="mb-1.5 block text-xs font-medium text-muted-foreground">Prompt 内容 *</label>
           <textarea value={content} onChange={e => setContent(e.target.value)} rows={10} placeholder="输入完整的 Prompt 内容..." className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm font-mono outline-none focus:border-primary/30 resize-y" />
         </div>
@@ -66,4 +102,13 @@ export default function NewPromptPage() {
       </div>
     </div>
   )
+}
+
+function saveLocalPrompt(prompt: any) {
+  try {
+    const existing = window.localStorage.getItem(LOCAL_PROMPTS_KEY)
+    const prompts = existing ? JSON.parse(existing) : []
+    window.localStorage.setItem(LOCAL_PROMPTS_KEY, JSON.stringify([prompt, ...prompts]))
+  } catch {
+  }
 }

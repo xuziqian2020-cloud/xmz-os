@@ -1,19 +1,33 @@
 "use client"
 import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 
 export default function NewKnowledgePage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const presetCategory = searchParams.get("category") || ""
+  const fromExperience = presetCategory === "经验库"
   const [title, setTitle] = useState("")
   const [content, setContent] = useState("")
-  const [category, setCategory] = useState("")
+  const [category, setCategory] = useState(presetCategory)
   const [tags, setTags] = useState("")
+  const [source, setSource] = useState("")
   const [projectId, setProjectId] = useState("")
   const [projects, setProjects] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
 
   useEffect(() => { fetch("/api/projects").then(r => r.json()).then(d => { if (Array.isArray(d)) setProjects(d) }).catch(() => {}) }, [])
+
+  const handleMarkdownFile = async (file: File | null) => {
+    if (!file) return
+    const text = await file.text()
+    const nextTitle = file.name.replace(/\.(md|markdown|txt)$/i, "")
+    if (!title.trim()) setTitle(nextTitle)
+    if (!category.trim()) setCategory("技术文档")
+    setSource(file.name)
+    setContent(text)
+  }
 
   const handleSubmit = async () => {
     if (!title.trim()) return
@@ -23,20 +37,32 @@ export default function NewKnowledgePage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         title: title.trim(), content, category: category || undefined,
+        source: source || undefined,
         tags: tags ? tags.split(",").map(s => s.trim()).filter(Boolean) : undefined,
         project_id: projectId || null,
       }),
     })
     if (!res.ok) { setError((await res.json()).error || "创建失败"); setLoading(false); return }
     const doc = await res.json()
-    router.push(`/knowledge/${doc.id}`)
+    router.push(fromExperience ? "/experiences" : `/knowledge/${doc.id}`)
     router.refresh()
   }
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
-      <div><h1 className="text-lg font-semibold">新建文档</h1></div>
+      <div><h1 className="text-lg font-semibold">{fromExperience ? "新增经验" : "新建文档"}</h1></div>
       <div className="space-y-4 rounded-lg border border-border bg-card p-5">
+        <div className="rounded-lg border border-dashed border-border bg-secondary/35 p-4">
+          <label className="block text-sm font-medium text-foreground">从本地 Markdown 导入</label>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">选择本地 .md、.markdown 或 .txt 文件后，会自动填充标题和正文。</p>
+          <input
+            type="file"
+            accept=".md,.markdown,.txt,text/markdown,text/plain"
+            onChange={e => handleMarkdownFile(e.target.files?.[0] ?? null)}
+            className="mt-3 block w-full text-sm text-muted-foreground file:mr-3 file:rounded-md file:border-0 file:bg-foreground file:px-3 file:py-2 file:text-sm file:font-medium file:text-background"
+          />
+          {source && <p className="mt-2 text-xs text-muted-foreground">已读取：{source}</p>}
+        </div>
         <div><label className="mb-1.5 block text-xs font-medium text-muted-foreground">标题 *</label>
           <input value={title} onChange={e => setTitle(e.target.value)} className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary/30 focus:ring-1 focus:ring-primary/20" />
         </div>

@@ -2,6 +2,22 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 
+// GET /api/projects — 获取当前用户项目列表
+export async function GET() {
+  const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: "未登录" }, { status: 401 })
+
+  const { data, error } = await supabase
+    .from("projects")
+    .select("*")
+    .is("deleted_at", null)
+    .order("updated_at", { ascending: false })
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json(data ?? [])
+}
+
 // POST /api/projects — 创建项目
 export async function POST(request: Request) {
   const supabase = createClient()

@@ -1,15 +1,31 @@
 "use client"
 
 import Link from "next/link"
+import { useEffect, useState } from "react"
 import { usePathname } from "next/navigation"
 import { useTheme } from "next-themes"
 import { ChevronRight, Moon, Sun } from "lucide-react"
+import { ADMIN_REMEMBER_FLAG } from "@/lib/auth/local-admin"
 import { cn } from "@/lib/utils"
 import { mainMenuItems, settingMenuItems, toolMenuItems } from "@/lib/menu-items"
+import { isDemoMode } from "@/lib/supabase/demo"
 
 // 产品导航，保持模块入口稳定，提升当前工作区识别度。
 export function Sidebar() {
   const pathname = usePathname()
+  const demoMode = isDemoMode()
+  const [adminMode, setAdminMode] = useState(false)
+
+  useEffect(() => {
+    setAdminMode(window.localStorage.getItem(ADMIN_REMEMBER_FLAG) === "1")
+  }, [])
+
+  const envTitle = adminMode ? "管理员模式" : demoMode ? "演示环境" : "真实数据"
+  const envDesc = adminMode
+    ? "admin 免密登录中，正式上线前建议关闭"
+    : demoMode
+      ? "连接 Supabase 后启用真实数据"
+      : "Supabase 已连接，当前使用真实数据"
 
   return (
     <aside className="fixed left-0 top-0 z-40 flex h-screen w-64 flex-col border-r border-border/80 bg-card/95 backdrop-blur-xl">
@@ -36,8 +52,8 @@ export function Sidebar() {
         <div className="rounded-lg border border-border bg-secondary/50 p-3">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-xs font-medium text-foreground">演示环境</p>
-              <p className="mt-1 text-[11px] leading-4 text-muted-foreground">连接 Supabase 后启用真实数据</p>
+              <p className="text-xs font-medium text-foreground">{envTitle}</p>
+              <p className="mt-1 text-[11px] leading-4 text-muted-foreground">{envDesc}</p>
             </div>
             <span className="h-2.5 w-2.5 rounded-full bg-[hsl(var(--accent))] shadow-[0_0_0_4px_hsl(var(--accent)/0.12)]" />
           </div>

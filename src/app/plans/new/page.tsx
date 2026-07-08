@@ -30,6 +30,10 @@ export default function NewPlanPage() {
 
   const handleSubmit = async () => {
     if (!title.trim()) return
+    if (!projectId) {
+      setError("请先选择所属项目。没有项目时，请先创建项目。")
+      return
+    }
     setLoading(true)
     setError("")
 
@@ -92,9 +96,9 @@ export default function NewPlanPage() {
         </div>
 
         {/* 所属项目 */}
-        <div><label className="mb-1.5 block text-xs font-medium text-muted-foreground">所属项目</label>
+        <div><label className="mb-1.5 block text-xs font-medium text-muted-foreground">所属项目 *</label>
           <select value={projectId} onChange={e => setProjectId(e.target.value)} className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary/30 focus:ring-1 focus:ring-primary/20">
-            <option value="">不限</option>
+            <option value="">{projects.length === 0 ? "暂无项目，请先创建项目" : "请选择项目"}</option>
             {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
         </div>
@@ -127,7 +131,7 @@ export default function NewPlanPage() {
       </div>
 
       <div className="flex items-center gap-3">
-        <button onClick={handleSubmit} disabled={!title.trim() || loading}
+        <button onClick={handleSubmit} disabled={!title.trim() || !projectId || loading}
           className="rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background transition-opacity hover:opacity-90 disabled:opacity-40">
           {loading ? "创建中..." : "创建计划"}
         </button>
