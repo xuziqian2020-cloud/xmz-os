@@ -15,7 +15,7 @@ export async function generateReminders(): Promise<void> {
     .select("id, title, project_id")
     .eq("type", "bug")
     .eq("bug_severity", "high")
-    .not("status", "in", '("已修复","无法重现")')
+    .not("status", "in", '("已完成","已上线","已归档","已取消","已修复","已拒绝","无法重现")')
     .is("deleted_at", null)
     .limit(3)
 
@@ -38,7 +38,7 @@ export async function generateReminders(): Promise<void> {
     .from("work_plans")
     .select("id, title, project_id, due_date")
     .lt("due_date", today)
-    .not("status", "in", '("已完成","已上线","已归档","已取消","已修复")')
+    .not("status", "in", '("已完成","已上线","已归档","已取消","已修复","已拒绝","无法重现")')
     .is("deleted_at", null)
     .limit(3)
 
@@ -64,7 +64,7 @@ export async function generateReminders(): Promise<void> {
     .eq("priority", "high")
     .gte("due_date", today)
     .lte("due_date", tomorrow)
-    .not("status", "in", '("已完成","已上线","已归档","已取消","已修复")')
+    .not("status", "in", '("已完成","已上线","已归档","已取消","已修复","已拒绝","无法重现")')
     .is("deleted_at", null)
     .limit(5)
 
@@ -89,7 +89,7 @@ export async function generateReminders(): Promise<void> {
     .select("id, title, project_id, due_date")
     .gte("due_date", today)
     .lte("due_date", threeDaysLater)
-    .not("status", "in", '("已完成","已上线","已归档","已取消","已修复")')
+    .not("status", "in", '("已完成","已上线","已归档","已取消","已修复","已拒绝","无法重现")')
     .is("deleted_at", null)
     .limit(5)
 

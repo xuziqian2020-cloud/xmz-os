@@ -2,27 +2,44 @@
 
 import Link from "next/link"
 import { useEffect, useState } from "react"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { useTheme } from "next-themes"
-import { ChevronRight, Moon, Sun } from "lucide-react"
-import { ADMIN_REMEMBER_FLAG } from "@/lib/auth/local-admin"
+import { ChevronRight, LogOut, Moon, Sun } from "lucide-react"
+import { ADMIN_REMEMBER_FLAG, REMEMBER_CREDENTIALS_KEY } from "@/lib/auth/local-admin"
+import { createClient } from "@/lib/supabase/client"
 import { cn } from "@/lib/utils"
 import { mainMenuItems, settingMenuItems, toolMenuItems } from "@/lib/menu-items"
 
 export function Sidebar() {
   const pathname = usePathname()
+  const router = useRouter()
   const [adminMode, setAdminMode] = useState(false)
 
   useEffect(() => {
     setAdminMode(window.localStorage.getItem(ADMIN_REMEMBER_FLAG) === "1")
   }, [])
 
+  async function handleLogout() {
+    window.localStorage.removeItem(ADMIN_REMEMBER_FLAG)
+    window.localStorage.removeItem(REMEMBER_CREDENTIALS_KEY)
+    setAdminMode(false)
+
+    try {
+      const supabase = createClient()
+      await supabase.auth.signOut()
+    } catch {
+    }
+
+    router.push("/login")
+    router.refresh()
+  }
+
   return (
-    <aside className="fixed left-0 top-0 z-40 flex h-screen w-64 flex-col border-r border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950">
-      <div className="border-b border-slate-200 px-5 py-5 dark:border-slate-800">
-        <Link href="/dashboard" className="group flex items-center gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-600 text-sm font-bold text-white shadow-sm transition-transform group-active:scale-[0.98]">
-            {adminMode ? "小美" : "XMZ"}
+    <aside className="fixed left-0 top-0 z-40 flex h-screen w-64 flex-col border-r border-border bg-background">
+      <div className="border-b border-border px-5 py-5">
+        <Link href="/dashboard" prefetch={false} className="group flex items-center gap-3">
+          <div className="h-12 w-12 overflow-hidden rounded-full border border-border bg-card shadow-sm transition-transform group-active:scale-[0.98]">
+            <img src="/images/xiaomei-avatar.png" alt="小美头像" className="h-full w-full object-cover" />
           </div>
           <span className="min-w-0">
             <span className="block text-base font-semibold">XMZ OS</span>
@@ -39,19 +56,29 @@ export function Sidebar() {
         <MenuSection label="系统配置" items={settingMenuItems} pathname={pathname} />
       </nav>
 
-      <div className="space-y-3 border-t border-slate-200 p-3 dark:border-slate-800">
+      <div className="space-y-3 border-t border-border p-3">
         <ThemeToggle />
-        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900">
+        <div className="rounded-lg border border-border bg-card p-3">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-600 text-sm font-bold text-white">
-              {adminMode ? "小美" : "XMZ"}
+            <div className="h-10 w-10 overflow-hidden rounded-full border border-border bg-background">
+              <img src="/images/xiaomei-avatar.png" alt="小美头像" className="h-full w-full object-cover" />
             </div>
             <div className="min-w-0">
               <p className="text-sm font-semibold">{adminMode ? "徐小美" : "开发者"}</p>
-              <p className="text-xs text-muted-foreground">{adminMode ? "免密快捷入口" : "工作模式"}</p>
+              <p className="text-xs text-muted-foreground">个人工作台</p>
             </div>
           </div>
         </div>
+        <button
+          type="button"
+          onClick={handleLogout}
+          className="flex w-full items-center justify-between rounded-lg border border-border bg-card px-3 py-2.5 text-sm text-muted-foreground transition-colors hover:text-foreground active:scale-[0.99]"
+        >
+          <span className="flex items-center gap-3">
+            <LogOut className="h-4 w-4" />
+            <span>退出登录</span>
+          </span>
+        </button>
       </div>
     </aside>
   )
@@ -78,11 +105,12 @@ function MenuSection({
             <li key={item.href}>
               <Link
                 href={item.href}
+                prefetch={false}
                 className={cn(
                   "group flex items-center justify-between rounded-lg px-3 py-2.5 text-sm font-medium transition-colors active:scale-[0.99]",
                   isActive
-                    ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900"
-                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white"
+                    ? "bg-foreground text-background"
+                    : "text-muted-foreground hover:bg-secondary hover:text-foreground"
                 )}
               >
                 <span className="flex min-w-0 items-center gap-3">
@@ -106,7 +134,7 @@ function ThemeToggle() {
   return (
     <button
       onClick={() => setTheme(isDark ? "light" : "dark")}
-      className="flex w-full items-center justify-between rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-muted-foreground transition-colors hover:text-foreground active:scale-[0.99] dark:border-slate-800 dark:bg-slate-900"
+      className="flex w-full items-center justify-between rounded-lg border border-border bg-card px-3 py-2.5 text-sm text-muted-foreground transition-colors hover:text-foreground active:scale-[0.99]"
     >
       <span className="flex items-center gap-3">
         <Sun className="h-4 w-4 dark:hidden" />

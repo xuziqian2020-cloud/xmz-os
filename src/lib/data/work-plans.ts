@@ -1,7 +1,7 @@
 // 工作计划数据层
 import { createClient } from "@/lib/supabase/server"
 import type { WorkPlan } from "@/lib/database.types"
-import { normalizeStatusForType } from "@/lib/work-plans/status-rules"
+import { normalizePriority, normalizeStatusForType } from "@/lib/work-plans/status-rules"
 
 export async function getWorkPlans(filters?: {
   project_id?: string
@@ -56,12 +56,20 @@ export async function createWorkPlan(input: {
 
   const statusRule = normalizeStatusForType({
     type: input.type,
-    status: input.status,
+    status: input.status || "进行中",
   })
+  const priority = normalizePriority(input.priority)
 
   const { data, error } = await supabase
     .from("work_plans")
-    .insert({ ...input, user_id: user.id, status: statusRule.status, progress: statusRule.progress })
+    .insert({
+      ...input,
+      user_id: user.id,
+      status: statusRule.status,
+      priority,
+      bug_severity: input.type === "bug" ? normalizePriority(input.bug_severity || priority) : input.bug_severity,
+      progress: statusRule.progress,
+    })
     .select()
     .single()
 

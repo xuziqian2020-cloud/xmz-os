@@ -4,7 +4,7 @@ export type ReminderPlanLike = {
   due_date?: string | null
 }
 
-const doneStatuses = new Set(["已完成", "已上线", "已归档", "已取消", "已修复"])
+const doneStatuses = new Set(["已完成", "已上线", "已归档", "已取消", "已修复", "已拒绝", "无法重现"])
 
 export function isActivePlan(status?: string | null): boolean {
   return !doneStatuses.has(status || "")

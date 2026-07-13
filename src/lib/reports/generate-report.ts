@@ -9,6 +9,7 @@ export interface ReportItem {
   type?: string | null
   category?: string | null
   description?: string | null
+  due_date?: string | null
   created_at?: string | null
   updated_at?: string | null
 }
@@ -24,6 +25,8 @@ export interface ReportInput {
 export interface BuiltReport {
   title: string
   label: string
+  kind: ReportKind
+  period: ReportPeriod
   stats: {
     projectCount: number
     planCount: number
@@ -35,6 +38,12 @@ export interface BuiltReport {
     highPlanCount: number
   }
   content: string
+}
+
+export type ReportPeriod = {
+  startKey: string
+  endKey: string
+  label: string
 }
 
 const reportLabels: Record<ReportKind, string> = {
@@ -50,25 +59,29 @@ export function getReportLabel(kind: ReportKind): string {
 
 export function buildReport(kind: ReportKind, input: ReportInput, now = new Date()): BuiltReport {
   const label = getReportLabel(kind)
-  const title = `${now.toLocaleDateString("zh-CN")} ${label}`
-  const activePlans = input.plans.filter((plan) => !isDone(plan.status))
-  const donePlans = input.plans.filter((plan) => isDone(plan.status))
-  const highPlans = input.plans.filter((plan) => plan.priority === "high" || plan.status === "重要")
+  const period = getReportPeriod(kind, now)
+  const title = `${period.label} ${label}`
+  const scopedInput = filterReportInput(input, period)
+  const activePlans = scopedInput.plans.filter((plan) => !isDone(plan.status))
+  const donePlans = scopedInput.plans.filter((plan) => isDone(plan.status))
+  const highPlans = scopedInput.plans.filter((plan) => plan.priority === "high")
 
   const stats = {
-    projectCount: input.projects.length,
-    planCount: input.plans.length,
+    projectCount: scopedInput.projects.length,
+    planCount: scopedInput.plans.length,
     activePlanCount: activePlans.length,
     donePlanCount: donePlans.length,
-    knowledgeCount: input.knowledge.length,
-    promptCount: input.prompts.length,
-    ideaCount: input.ideas.length,
+    knowledgeCount: scopedInput.knowledge.length,
+    promptCount: scopedInput.prompts.length,
+    ideaCount: scopedInput.ideas.length,
     highPlanCount: highPlans.length,
   }
 
   return {
     title,
     label,
+    kind,
+    period,
     stats,
     content: [
       `# ${title}`,
@@ -80,13 +93,13 @@ export function buildReport(kind: ReportKind, input: ReportInput, now = new Date
       `- 知识沉淀：${stats.knowledgeCount} 篇，Prompt 模板：${stats.promptCount} 条，灵感：${stats.ideaCount} 条`,
       "",
       "## 二、重点计划",
-      ...toBulletLines(input.plans.slice(0, 10), "暂无计划数据"),
+      ...toBulletLines(scopedInput.plans.slice(0, 10), "暂无计划数据"),
       "",
       "## 三、项目进展",
-      ...toBulletLines(input.projects.slice(0, 6), "暂无项目数据"),
+      ...toBulletLines(scopedInput.projects.slice(0, 6), "暂无项目数据"),
       "",
       "## 四、知识与经验沉淀",
-      ...toBulletLines(input.knowledge.slice(0, 8), "暂无知识库数据"),
+      ...toBulletLines(scopedInput.knowledge.slice(0, 8), "暂无知识库数据"),
       "",
       "## 五、下阶段建议",
       ...buildSuggestions(stats.highPlanCount, stats.activePlanCount, stats.knowledgeCount),
@@ -97,9 +110,10 @@ export function buildReport(kind: ReportKind, input: ReportInput, now = new Date
 export function buildReportDocumentHtml(report: BuiltReport, input: ReportInput, now = new Date()): string {
   const dateText = now.toLocaleDateString("zh-CN")
   const timeText = now.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })
-  const planItems = input.plans.slice(0, 10)
-  const knowledgeItems = input.knowledge.slice(0, 8)
-  const projectItems = input.projects.slice(0, 6)
+  const scopedInput = filterReportInput(input, report.period)
+  const planItems = scopedInput.plans.slice(0, 10)
+  const knowledgeItems = scopedInput.knowledge.slice(0, 8)
+  const projectItems = scopedInput.projects.slice(0, 6)
 
   return `<!DOCTYPE html>
 <html lang="zh-CN">
@@ -121,7 +135,7 @@ export function buildReportDocumentHtml(report: BuiltReport, input: ReportInput,
 </head>
 <body>
   <h1>${escapeHtml(report.label)}报告</h1>
-  <p class="meta">生成时间：${escapeHtml(dateText)} ${escapeHtml(timeText)} | XMZ OS</p>
+  <p class="meta">统计期间：${escapeHtml(report.period.label)} | 生成时间：${escapeHtml(dateText)} ${escapeHtml(timeText)} | XMZ OS</p>
 
   <div class="summary">
     <p><strong>本期概览</strong></p>
@@ -152,8 +166,76 @@ export function buildReportDocumentHtml(report: BuiltReport, input: ReportInput,
 </html>`
 }
 
+export function getReportPeriod(kind: ReportKind, now = new Date()): ReportPeriod {
+  const date = new Date(now)
+  date.setHours(0, 0, 0, 0)
+
+  if (kind === "daily") {
+    const key = toDateKey(date)
+    return { startKey: key, endKey: key, label: key }
+  }
+
+  if (kind === "weekly") {
+    const start = new Date(date)
+    const day = start.getDay()
+    start.setDate(start.getDate() + (day === 0 ? -6 : 1 - day))
+    const end = new Date(start)
+    end.setDate(start.getDate() + 6)
+    return { startKey: toDateKey(start), endKey: toDateKey(end), label: `${toDateKey(start)} 至 ${toDateKey(end)}` }
+  }
+
+  if (kind === "monthly") {
+    const start = new Date(date.getFullYear(), date.getMonth(), 1)
+    const end = new Date(date.getFullYear(), date.getMonth() + 1, 0)
+    return { startKey: toDateKey(start), endKey: toDateKey(end), label: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}` }
+  }
+
+  const start = new Date(date.getFullYear(), 0, 1)
+  const end = new Date(date.getFullYear(), 11, 31)
+  return { startKey: toDateKey(start), endKey: toDateKey(end), label: String(date.getFullYear()) }
+}
+
+function filterReportInput(input: ReportInput, period: ReportPeriod): ReportInput {
+  return {
+    projects: input.projects.filter((item) => isItemInPeriod(item, period, ["updated_at", "created_at"])),
+    plans: input.plans.filter((item) => isItemInPeriod(item, period, ["due_date", "updated_at", "created_at"])),
+    knowledge: input.knowledge.filter((item) => isItemInPeriod(item, period, ["updated_at", "created_at"])),
+    prompts: input.prompts.filter((item) => isItemInPeriod(item, period, ["updated_at", "created_at"])),
+    ideas: input.ideas.filter((item) => isItemInPeriod(item, period, ["updated_at", "created_at"])),
+  }
+}
+
+function isItemInPeriod(item: ReportItem, period: ReportPeriod, fields: Array<keyof ReportItem>): boolean {
+  let hasDate = false
+
+  for (const field of fields) {
+    const key = getDateKeyFromValue(item[field])
+    if (!key) continue
+    hasDate = true
+    if (key >= period.startKey && key <= period.endKey) return true
+  }
+
+  return !hasDate
+}
+
+function getDateKeyFromValue(value: unknown): string {
+  if (typeof value !== "string" || !value) return ""
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value
+
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ""
+  return toDateKey(date)
+}
+
+function toDateKey(date: Date): string {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, "0")
+  const day = String(date.getDate()).padStart(2, "0")
+  return `${year}-${month}-${day}`
+}
+
 function isDone(status?: string | null): boolean {
-  return status === "已完成" || status === "已上线" || status === "已归档"
+  return status === "已完成" || status === "已上线" || status === "已归档" || status === "已拒绝" || status === "已取消" || status === "已修复" || status === "无法重现"
 }
 
 function toBulletLines(items: ReportItem[], emptyText: string): string[] {
@@ -178,7 +260,7 @@ function renderHtmlList(items: ReportItem[], emptyText: string): string {
 
 function buildSuggestions(highPlanCount: number, activePlanCount: number, knowledgeCount: number): string[] {
   const suggestions: string[] = []
-  if (highPlanCount > 0) suggestions.push("- 先处理重要事项，避免阻塞项目推进。")
+  if (highPlanCount > 0) suggestions.push("- 先处理本期重要计划，避免阻塞项目推进。")
   if (activePlanCount > 5) suggestions.push("- 当前未完成事项较多，建议做一次范围收敛。")
   if (knowledgeCount === 0) suggestions.push("- 本期缺少知识沉淀，建议补一篇复盘或接口说明。")
   if (suggestions.length === 0) suggestions.push("- 当前节奏正常，继续保持计划、复盘和知识入库的闭环。")

@@ -1,6 +1,6 @@
 // 本地 AI 工具
 "use client"
-import { useState } from "react"
+import Link from "next/link"
 
 export default function ToolsPage() {
   return (
@@ -10,10 +10,13 @@ export default function ToolsPage() {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <ToolCard title="SQL 格式化" desc="格式化 SQL 语句" icon="🗄️" href="/tools/sql-formatter" />
         <ToolCard title="JSON 格式化" desc="格式化 + 校验 JSON" icon="📦" href="/tools/json-formatter" />
-        <ToolCard title="OCR 识别" desc="图片文字识别（TODO）" icon="🔍" />
-        <ToolCard title="PDF 转 Markdown" desc="PDF 文档转换（TODO）" icon="📄" />
-        <ToolCard title="Word 转 Markdown" desc="Word 文档转换（TODO）" icon="📝" />
-        <ToolCard title="语音转文字" desc="语音文件转文字（TODO）" icon="🎙️" />
+        <ToolCard title="OCR 识别" desc="图片文字识别" icon="🔍" href="/tools/ocr" />
+        <ToolCard title="PDF 转 Markdown" desc="PDF 文档转换" icon="📄" href="/tools/pdf-to-markdown" />
+        <ToolCard title="Word 转 Markdown" desc="Word 文档转换" icon="📝" href="/tools/word-to-markdown" />
+        <ToolCard title="PDF 转 Word" desc="PDF 转成 Word 可打开文档" icon="📄" href="/tools/pdf-to-word" />
+        <ToolCard title="Word 转 PDF" desc="Word 文档转成 PDF" icon="🧾" href="/tools/word-to-pdf" />
+        <ToolCard title="音视频转文字" desc="语音和视频文件转文字" icon="🎙️" href="/tools/transcription" />
+        <ToolCard title="会议纪要" desc="录音转写并生成纪要 Word" icon="🧾" href="/tools/meeting-minutes" />
       </div>
     </div>
   )
@@ -28,5 +31,5 @@ function ToolCard({ title, desc, icon, href }: { title: string; desc: string; ic
       <p className="mt-1 text-xs text-muted-foreground">{desc}</p>
     </>
   )
-  return href ? <a href={href} className={className}>{content}</a> : <div className={className}>{content}</div>
+  return href ? <Link href={href} prefetch={false} className={className}>{content}</Link> : <div className={className}>{content}</div>
 }

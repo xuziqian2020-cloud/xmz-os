@@ -1,7 +1,7 @@
 export type ProjectStatus = "active" | "archived" | "paused"
 export type WorkPlanType = "requirement" | "bug" | "custom"
 export type WorkPlanPriority = "high" | "medium" | "low"
-export type WorkPlanStatus = "重要" | "中等" | "低"
+export type WorkPlanStatus = "进行中" | "已完成" | "已拒绝"
 export type BugSeverity = "high" | "medium" | "low"
 
 export type IdeaCategory = "功能想法" | "优化想法" | "AI想法" | "业务想法" | "技术想法"
@@ -36,7 +36,7 @@ export interface WorkPlan {
   title: string
   description: string | null
   priority: WorkPlanPriority
-  status: string
+  status: WorkPlanStatus | string
   progress: number
   start_date: string | null
   due_date: string | null

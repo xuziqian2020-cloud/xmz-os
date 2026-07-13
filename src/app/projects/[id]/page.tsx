@@ -14,12 +14,12 @@ export default async function ProjectDetailPage({ params }: { params: { id: stri
     { label: "计划", href: `/projects/${project.id}/plans`, icon: ListTodo, count: stats.planCount },
     { label: "知识库", href: `/projects/${project.id}/knowledge`, icon: BookOpen, count: stats.knowledgeCount },
     { label: "Bug", href: `/projects/${project.id}/bugs`, icon: Bug, count: stats.bugCount },
-    { label: "Prompt", href: `/projects/${project.id}/prompts`, icon: MessageSquare, count: undefined },
-    { label: "流程图", href: `/projects/${project.id}/process`, icon: GitBranch, count: undefined },
+    { label: "Prompt", href: `/projects/${project.id}/prompts`, icon: MessageSquare, count: stats.promptCount },
+    { label: "流程图", href: `/projects/${project.id}/process`, icon: GitBranch, count: stats.processCount },
     { label: "文件", href: `/projects/${project.id}/files`, icon: FileText, count: stats.fileCount },
     { label: "灵感", href: `/projects/${project.id}/ideas`, icon: Lightbulb, count: stats.ideaCount },
     { label: "报表", href: `/projects/${project.id}/reports`, icon: BarChart3, count: undefined },
-    { label: "经验库", href: `/projects/${project.id}/experiences`, icon: Sparkles, count: undefined },
+    { label: "经验库", href: `/projects/${project.id}/experiences`, icon: Sparkles, count: stats.experienceCount },
   ]
 
   return (

@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { useEffect, useMemo, useState } from "react"
 import { BarChart3, FileUp, Trash2 } from "lucide-react"
-import { PlanStatusSelect } from "@/components/plans/plan-status-select"
+import { PlanCompletionSelect, PlanPrioritySelect } from "@/components/plans/plan-status-select"
 import { buildReport, type ReportInput, type ReportKind } from "@/lib/reports/generate-report"
 
 export type ProjectModuleKey =
@@ -38,7 +38,7 @@ const configs: Record<ProjectModuleKey, {
   },
   bugs: {
     title: "项目 Bug",
-    desc: "只展示该项目的 Bug，状态限定为待分析、无法重现、已修复。",
+    desc: "只展示该项目的 Bug，可直接调整重要程度和完成状态。",
     createHref: (projectId) => `/plans/new?type=bug&project_id=${projectId}`,
     endpoint: (projectId) => `/api/work-plans?project_id=${projectId}&type=bug`,
     empty: "这个项目还没有 Bug。",
@@ -171,7 +171,7 @@ export function ProjectModuleView({ projectId, moduleKey }: ProjectModuleViewPro
           <p className="mt-1 text-sm text-muted-foreground">{config.desc}</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Link href={`/projects/${projectId}`} className="rounded-md border border-border px-3 py-2 text-sm text-muted-foreground hover:text-foreground">
+          <Link href={`/projects/${projectId}`} prefetch={false} className="rounded-md border border-border px-3 py-2 text-sm text-muted-foreground hover:text-foreground">
             返回项目
           </Link>
           {moduleKey === "files" && (
@@ -182,7 +182,7 @@ export function ProjectModuleView({ projectId, moduleKey }: ProjectModuleViewPro
             </label>
           )}
           {config.createHref && (
-            <Link href={config.createHref(projectId)} className="rounded-md bg-foreground px-3 py-2 text-sm font-medium text-background hover:opacity-90">
+            <Link href={config.createHref(projectId)} prefetch={false} className="rounded-md bg-foreground px-3 py-2 text-sm font-medium text-background hover:opacity-90">
               新增
             </Link>
           )}
@@ -200,7 +200,7 @@ export function ProjectModuleView({ projectId, moduleKey }: ProjectModuleViewPro
       ) : (
         <div className="space-y-2">
           {items.map((item) => (
-            <ProjectModuleItem key={item.id} moduleKey={moduleKey} item={item} onDelete={() => handleDelete(item)} />
+            <ProjectModuleItem key={item.id} moduleKey={moduleKey} item={item} onDelete={() => handleDelete(item)} onItemSaved={loadItems} />
           ))}
         </div>
       )}
@@ -218,24 +218,25 @@ async function fetchList(url: string) {
   }
 }
 
-function ProjectModuleItem({ moduleKey, item, onDelete }: { moduleKey: ProjectModuleKey; item: any; onDelete: () => void }) {
+function ProjectModuleItem({ moduleKey, item, onDelete, onItemSaved }: { moduleKey: ProjectModuleKey; item: any; onDelete: () => void; onItemSaved: () => void }) {
   if (moduleKey === "plans" || moduleKey === "bugs") {
     return (
       <div className="rounded-lg border border-border bg-card p-4">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0">
-            <Link href={`/plans/${item.id}`} className="font-medium hover:text-[hsl(var(--accent))]">{item.title}</Link>
+            <Link href={`/plans/${item.id}`} prefetch={false} className="font-medium hover:text-[hsl(var(--accent))]">{item.title}</Link>
             <p className="mt-1 text-sm text-muted-foreground">{item.description || "暂无描述"}</p>
             <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
               <span className="rounded-md bg-secondary px-2 py-1">{item.type === "bug" ? "Bug" : item.type === "requirement" ? "需求" : "自定义"}</span>
-              <span className="rounded-md bg-secondary px-2 py-1">优先级：{priorityLabel(item.priority)}</span>
+              <span className="rounded-md bg-secondary px-2 py-1">重要程度：{priorityLabel(item.priority)}</span>
               <span className="rounded-md bg-secondary px-2 py-1">进度：{item.progress ?? 0}%</span>
               {item.due_date && <span className="rounded-md bg-secondary px-2 py-1">截止：{item.due_date}</span>}
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <PlanStatusSelect planId={item.id} type={item.type} status={item.status} progress={item.progress} />
-            <Link href={`/plans/${item.id}/edit`} className="rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground">编辑</Link>
+            <PlanPrioritySelect planId={item.id} type={item.type} priority={item.priority} onSaved={onItemSaved} />
+            <PlanCompletionSelect planId={item.id} type={item.type} status={item.status} progress={item.progress} onSaved={onItemSaved} />
+            <Link href={`/plans/${item.id}/edit`} prefetch={false} className="rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground">编辑</Link>
             <DeleteButton onClick={onDelete} />
           </div>
         </div>
@@ -249,7 +250,7 @@ function ProjectModuleItem({ moduleKey, item, onDelete }: { moduleKey: ProjectMo
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
           {href ? (
-            <Link href={href} className="font-medium hover:text-[hsl(var(--accent))]">{item.title || item.file_name || "未命名"}</Link>
+            <Link href={href} prefetch={false} className="font-medium hover:text-[hsl(var(--accent))]">{item.title || item.file_name || "未命名"}</Link>
           ) : (
             <p className="font-medium">{item.title || item.file_name || "未命名"}</p>
           )}
@@ -263,12 +264,12 @@ function ProjectModuleItem({ moduleKey, item, onDelete }: { moduleKey: ProjectMo
         </div>
         <div className="flex shrink-0 items-center gap-2">
           {moduleKey === "files" && item.storage_path && (
-            <a href={item.storage_path} target="_blank" className="rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground">
+            <a href={`/api/files/${item.id}/download`} className="rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground">
               下载
             </a>
           )}
           {getEditHref(moduleKey, item.id) && (
-            <Link href={getEditHref(moduleKey, item.id)!} className="rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground">
+            <Link href={getEditHref(moduleKey, item.id)!} prefetch={false} className="rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground">
               编辑
             </Link>
           )}
@@ -358,8 +359,8 @@ function getItemSummary(moduleKey: ProjectModuleKey, item: any) {
 }
 
 function priorityLabel(value?: string) {
-  if (value === "high") return "高"
-  if (value === "medium") return "中"
+  if (value === "high") return "重要"
+  if (value === "medium") return "中等"
   return "低"
 }
 

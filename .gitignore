@@ -16,6 +16,15 @@ out/
 *.log
 logs-dev-*.txt
 
+# local runtime artifacts
+.tools/
+.qa/
+.next-start.*
+tsconfig.tsbuildinfo
+deno.lock
+*.traineddata
+netlify-*.png
+
 # OS and editor files
 .DS_Store
 Thumbs.db

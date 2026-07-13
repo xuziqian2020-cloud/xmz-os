@@ -1,7 +1,7 @@
-// 编辑计划页（简化版 — 仅支持修改状态和描述）
+// 编辑计划页（简化版 — 支持修改完成状态和描述）
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useRouter, useParams } from "next/navigation"
 import { getAllowedStatuses, normalizeStatusForType } from "@/lib/work-plans/status-rules"
 
@@ -12,14 +12,16 @@ export default function EditPlanPage() {
   const [title, setTitle] = useState("")
   const [description, setDescription] = useState("")
   const [status, setStatus] = useState("")
+  const [dueDate, setDueDate] = useState("")
   const [progress, setProgress] = useState(0)
   const [loading, setLoading] = useState(false)
   const [pageLoading, setPageLoading] = useState(true)
+  const dueDateRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     fetch(`/api/work-plans/${id}`).then(r => r.json()).then(d => {
       setPlan(d); setTitle(d.title || ""); setDescription(d.description || "")
-      setStatus(d.status || ""); setProgress(d.progress || 0)
+      setStatus(d.status || ""); setDueDate((d.due_date || "").slice(0, 10)); setProgress(d.progress || 0)
     }).finally(() => setPageLoading(false))
   }, [id])
 
@@ -35,7 +37,7 @@ export default function EditPlanPage() {
     const res = await fetch(`/api/work-plans/${id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title: title.trim(), description: description.trim(), status, progress }),
+      body: JSON.stringify({ title: title.trim(), description: description.trim(), status, due_date: dueDate || dueDateRef.current?.value || null, progress }),
     })
     if (res.ok) { router.push(`/plans/${id}`); router.refresh() }
     setLoading(false)
@@ -56,9 +58,12 @@ export default function EditPlanPage() {
             {getAllowedStatuses(plan.type).map(s => <option key={s} value={s}>{s}</option>)}
           </select>
         </div>
+        <div><label className="mb-1.5 block text-xs font-medium text-muted-foreground">截止日期</label>
+          <input ref={dueDateRef} type="date" value={dueDate} onInput={e => setDueDate(e.currentTarget.value)} onChange={e => setDueDate(e.target.value)} className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary/30 focus:ring-1 focus:ring-primary/20" />
+        </div>
         <div><label className="mb-1.5 block text-xs font-medium text-muted-foreground">进度 ({progress}%)</label>
-          <input type="range" min="0" max="100" value={progress} onChange={e => setProgress(parseInt(e.target.value))} disabled={plan.type === "bug"} className="w-full disabled:opacity-45" />
-          {plan.type === "bug" && <p className="mt-1 text-xs text-muted-foreground">Bug 进度由状态自动决定：待分析/无法重现为 0，已修复为 100。</p>}
+          <input type="range" min="0" max="100" value={progress} onChange={e => setProgress(parseInt(e.target.value))} disabled={status !== "进行中"} className="w-full disabled:opacity-45" />
+          {status !== "进行中" && <p className="mt-1 text-xs text-muted-foreground">已完成自动为 100%，已拒绝自动为 0%。</p>}
         </div>
         <div><label className="mb-1.5 block text-xs font-medium text-muted-foreground">描述</label>
           <textarea value={description} onChange={e => setDescription(e.target.value)} rows={4} className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary/30 focus:ring-1 focus:ring-primary/20 resize-none" />

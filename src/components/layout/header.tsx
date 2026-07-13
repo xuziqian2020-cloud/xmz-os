@@ -105,7 +105,7 @@ export function Header() {
                 {crumb.current ? (
                   <span className="truncate font-medium text-foreground">{crumb.label}</span>
                 ) : (
-                  <Link href={crumb.href} className="truncate text-muted-foreground transition-colors hover:text-foreground">
+                  <Link href={crumb.href} prefetch={false} className="truncate text-muted-foreground transition-colors hover:text-foreground">
                     {crumb.label}
                   </Link>
                 )}
@@ -131,6 +131,7 @@ export function Header() {
 
             <Link
               href="/plans/new"
+              prefetch={false}
               className={cn("inline-flex items-center gap-2 rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background shadow-sm transition-all hover:opacity-90 active:scale-[0.98]")}
             >
               <Plus className="h-4 w-4" />
@@ -175,6 +176,7 @@ export function Header() {
                     <Link
                       key={`${item.subtitle}-${item.id}`}
                       href={item.href}
+                      prefetch={false}
                       onClick={() => setSearchOpen(false)}
                       className="flex items-center gap-3 rounded-lg px-4 py-3 transition-colors hover:bg-secondary"
                     >

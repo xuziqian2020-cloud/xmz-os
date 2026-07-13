@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import type { ReactNode } from "react"
 import { CheckCircle2, PlugZap, Save, Trash2 } from "lucide-react"
+import { LOCAL_AI_PROVIDERS_KEY } from "@/lib/ai/local-providers"
 import { cn } from "@/lib/utils"
 
 type ProviderPreset = {
@@ -31,8 +32,6 @@ const initialForm = {
   default_model: "gpt-4o-mini",
   is_enabled: true,
 }
-
-const LOCAL_AI_PROVIDERS_KEY = "xmz-os-local-ai-providers"
 
 export default function AISettingsPage() {
   const [providers, setProviders] = useState<any[]>([])
@@ -132,6 +131,30 @@ export default function AISettingsPage() {
 
     await fetch(`/api/ai-providers/${id}`, { method: "DELETE" })
     setProviders((prev) => prev.filter((provider) => provider.id !== id))
+  }
+
+  async function toggleProviderEnabled(provider: any) {
+    const nextEnabled = !provider.is_enabled
+    const nextProviders = providers.map((item) => ({
+      ...item,
+      is_enabled: item.id === provider.id ? nextEnabled : nextEnabled ? false : item.is_enabled,
+    }))
+    setProviders(nextProviders)
+
+    const localProviders = nextProviders.filter((item) => String(item.id).startsWith("local-"))
+    window.localStorage.setItem(LOCAL_AI_PROVIDERS_KEY, JSON.stringify(localProviders))
+
+    await Promise.all(
+      nextProviders
+        .filter((item) => !String(item.id).startsWith("local-"))
+        .map((item) =>
+          fetch(`/api/ai-providers/${item.id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ is_enabled: item.is_enabled }),
+          })
+        )
+    )
   }
 
   async function testProvider(provider: any) {
@@ -291,6 +314,18 @@ export default function AISettingsPage() {
                         {provider.default_model && <p className="mt-1 text-sm text-muted-foreground">模型：{provider.default_model}</p>}
                       </div>
                       <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => toggleProviderEnabled(provider)}
+                          className={cn(
+                            "inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm",
+                            provider.is_enabled
+                              ? "border-emerald-200 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-900/50 dark:text-emerald-300 dark:hover:bg-emerald-950/50"
+                              : "border-border hover:bg-secondary"
+                          )}
+                        >
+                          {provider.is_enabled ? "取消启用" : "启用"}
+                        </button>
                         <button
                           type="button"
                           onClick={() => testProvider(provider)}

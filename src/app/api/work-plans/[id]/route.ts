@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
-import { normalizeStatusForType, statusToPriority } from "@/lib/work-plans/status-rules"
+import { clampProgress, normalizePriority, normalizeStatusForType } from "@/lib/work-plans/status-rules"
 
 export async function GET(_: Request, { params }: { params: { id: string } }) {
   const supabase = createClient()
@@ -14,7 +14,7 @@ export async function PUT(request: Request, { params }: { params: { id: string }
   const body = await request.json()
   const { data: current } = await supabase
     .from("work_plans")
-    .select("type, status, progress")
+    .select("type, status, progress, priority")
     .eq("id", params.id)
     .single()
 
@@ -22,19 +22,28 @@ export async function PUT(request: Request, { params }: { params: { id: string }
 
   const statusRule = normalizeStatusForType({
     type: body.type || current.type,
-    status: body.status ?? body.priority ?? current.status,
+    status: body.status ?? current.status,
     progress: body.progress ?? current.progress,
   })
+  const nextPriority = body.priority === undefined ? current.priority : normalizePriority(body.priority)
+  const nextProgress = body.status === undefined && body.progress !== undefined ? clampProgress(body.progress) : statusRule.progress
+  const updatePayload: Record<string, any> = {
+    ...body,
+    status: statusRule.status,
+    priority: nextPriority,
+    progress: nextProgress,
+    updated_at: new Date().toISOString(),
+  }
+
+  if ((body.type || current.type) === "bug" && body.priority !== undefined) {
+    updatePayload.bug_severity = nextPriority
+  } else if (body.bug_severity !== undefined) {
+    updatePayload.bug_severity = normalizePriority(body.bug_severity)
+  }
 
   const { data, error } = await supabase
     .from("work_plans")
-    .update({
-      ...body,
-      status: statusRule.status,
-      priority: body.priority || statusToPriority(statusRule.status),
-      progress: statusRule.progress,
-      updated_at: new Date().toISOString(),
-    })
+    .update(updatePayload)
     .eq("id", params.id)
     .select()
     .single()

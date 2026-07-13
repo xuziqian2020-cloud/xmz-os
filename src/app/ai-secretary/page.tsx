@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import {
   AlertTriangle,
   Bug,
@@ -10,16 +10,15 @@ import {
   FileText,
   MessageSquareText,
   Send,
-  Sparkles,
 } from "lucide-react"
 import { ADMIN_REMEMBER_FLAG } from "@/lib/auth/local-admin"
-import type { SmartReminder } from "@/lib/database.types"
+import { selectBrowserAiProvider } from "@/lib/ai/local-providers"
+import {
+  buildDashboardSummary,
+  type DashboardPlanLike,
+  type DashboardReminderLike,
+} from "@/lib/dashboard/summary"
 import { cn } from "@/lib/utils"
-
-type ReminderLike = Partial<SmartReminder> & {
-  id: string
-  title: string
-}
 
 const typeLabels: Record<string, string> = {
   bug_severe: "严重 Bug",
@@ -30,39 +29,11 @@ const typeLabels: Record<string, string> = {
   custom: "提醒",
 }
 
-const demoReminders: ReminderLike[] = [
-  {
-    id: "today-login",
-    reminder_type: "bug_severe",
-    title: "登录入口需要优先验证",
-    description: "只有输入徐小美时允许免密，admin 不再触发专用入口。",
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: "today-search",
-    reminder_type: "plan_due_soon",
-    title: "全局搜索今天要可点击可返回结果",
-    description: "顶部搜索按钮要能搜索项目、计划、知识、Prompt 和灵感。",
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: "week-report",
-    reminder_type: "weekly_candidate",
-    title: "本周研发进展可整理为周报",
-    description: "登录、统计、导航和 Word 导出都适合写入本周总结。",
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: "week-ai",
-    reminder_type: "important_plan",
-    title: "AI 设置需要完成供应商配置闭环",
-    description: "常用供应商自动带 API 地址，自定义供应商开放名称和地址。",
-    created_at: new Date().toISOString(),
-  },
-]
-
 export default function AISecretaryPage() {
   const [adminMode, setAdminMode] = useState(false)
+  const [plans, setPlans] = useState<DashboardPlanLike[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState("")
   const [chatInput, setChatInput] = useState("")
   const [chatHistory, setChatHistory] = useState<Array<{ role: "user" | "assistant"; content: string }>>([
     { role: "assistant", content: "我是小美。你可以问我今天先做什么、怎么写周报，或者让我要点式列出风险。" },
@@ -72,25 +43,62 @@ export default function AISecretaryPage() {
     setAdminMode(window.localStorage.getItem(ADMIN_REMEMBER_FLAG) === "1")
   }, [])
 
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadPlans() {
+      setLoading(true)
+      setError("")
+      try {
+        const res = await fetch("/api/work-plans?limit=200", { cache: "no-store" })
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.error || "工作计划加载失败")
+        if (!cancelled) setPlans(Array.isArray(data) ? data : [])
+      } catch (e: any) {
+        if (!cancelled) {
+          setPlans([])
+          setError(e.message || "工作计划加载失败")
+        }
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+
+    loadPlans()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   const displayName = adminMode ? "徐小美" : "开发者"
-  const todayReminders = demoReminders.filter((item) =>
-    item.reminder_type === "bug_severe" || item.reminder_type === "plan_overdue" || item.reminder_type === "plan_due_soon"
-  )
-  const todayIds = new Set(todayReminders.map((item) => item.id))
-  const weekReminders = demoReminders.filter((item) =>
-    (item.reminder_type === "important_plan" || item.reminder_type === "weekly_candidate") && !todayIds.has(item.id)
-  )
+  const summary = useMemo(() => buildDashboardSummary(plans), [plans])
+  const todayReminders = summary.todayReminders
+  const weekReminders = summary.weekReminders
 
   function handleChatSubmit(nextText?: string) {
     const userMessage = (nextText || chatInput).trim()
     if (!userMessage) return
 
-    setChatHistory((prev) => [...prev, { role: "user", content: userMessage }])
+    const nextHistory: Array<{ role: "user" | "assistant"; content: string }> = [...chatHistory, { role: "user", content: userMessage }]
+    setChatHistory(nextHistory)
     setChatInput("")
 
-    window.setTimeout(() => {
-      setChatHistory((prev) => [...prev, { role: "assistant", content: buildReply(userMessage, todayReminders.length, weekReminders.length) }])
-    }, 300)
+    fetch("/api/ai-chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        messages: nextHistory,
+        context: buildChatContext(summary),
+        provider: selectBrowserAiProvider(),
+      }),
+    })
+      .then((res) => res.json().then((data) => ({ ok: res.ok, data })))
+      .then(({ ok, data }) => {
+        setChatHistory((prev) => [...prev, { role: "assistant", content: ok ? data.answer : data.error || buildReply(userMessage, todayReminders.length, weekReminders.length) }])
+      })
+      .catch(() => {
+        setChatHistory((prev) => [...prev, { role: "assistant", content: buildReply(userMessage, todayReminders.length, weekReminders.length) }])
+      })
   }
 
   return (
@@ -98,7 +106,8 @@ export default function AISecretaryPage() {
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <h1 className="text-3xl font-semibold tracking-normal">小美待办雷达</h1>
-          <p className="mt-2 text-base text-muted-foreground">按当日和本周拆开提醒，今日已出现的事项不会在本周重复显示。</p>
+          <p className="mt-2 text-base text-muted-foreground">按当日和本周拆开提醒，逾期和今日事项也会保留在本周视图里。</p>
+          {error && <p className="mt-3 text-sm text-destructive">{error}</p>}
         </div>
         <div className="rounded-xl border border-border bg-card px-4 py-3">
           <p className="text-sm text-muted-foreground">当前账号</p>
@@ -108,18 +117,18 @@ export default function AISecretaryPage() {
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
         <div className="space-y-5">
-          <ReminderSection title="今日待办" count={todayReminders.length} tone="today" reminders={todayReminders} emptyText="今日暂无紧急事项" />
-          <ReminderSection title="本周关注" count={weekReminders.length} tone="week" reminders={weekReminders} emptyText="本周暂无额外关注项" />
+          <ReminderSection title="今日待办" count={todayReminders.length} tone="today" reminders={todayReminders} emptyText={loading ? "正在读取今日待办..." : "今日暂无紧急事项"} />
+          <ReminderSection title="本周关注" count={weekReminders.length} tone="week" reminders={weekReminders} emptyText={loading ? "正在读取本周待办..." : "本周暂无额外关注项"} />
         </div>
 
         <section className="flex h-[calc(100dvh-12rem)] min-h-[560px] flex-col rounded-xl border border-border bg-card">
           <div className="flex items-center gap-3 border-b border-border p-5">
-            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-emerald-600 text-white">
-              <Sparkles className="h-5 w-5" />
+            <div className="h-11 w-11 overflow-hidden rounded-full border border-border bg-background">
+              <img src="/images/xiaomei-avatar.png" alt="小美头像" className="h-full w-full object-cover" />
             </div>
             <div>
               <h2 className="text-xl font-semibold">和小美聊聊</h2>
-              <p className="text-sm text-muted-foreground">本地助手先给你整理优先级</p>
+              <p className="text-sm text-muted-foreground">本地助手按重要程度和截止日期整理</p>
             </div>
           </div>
 
@@ -127,8 +136,8 @@ export default function AISecretaryPage() {
             {chatHistory.map((message, index) => (
               <div key={index} className={cn("flex gap-3", message.role === "user" && "justify-end")}>
                 {message.role === "assistant" && (
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-white">
-                    <Sparkles className="h-4 w-4" />
+                  <div className="h-8 w-8 shrink-0 overflow-hidden rounded-full border border-border bg-background">
+                    <img src="/images/xiaomei-avatar.png" alt="" className="h-full w-full object-cover" />
                   </div>
                 )}
                 <div
@@ -192,7 +201,7 @@ function ReminderSection({
   title: string
   count: number
   tone: "today" | "week"
-  reminders: ReminderLike[]
+  reminders: DashboardReminderLike[]
   emptyText: string
 }) {
   return (
@@ -220,7 +229,7 @@ function ReminderSection({
   )
 }
 
-function ReminderCard({ reminder }: { reminder: ReminderLike }) {
+function ReminderCard({ reminder }: { reminder: DashboardReminderLike }) {
   const meta = getReminderMeta(reminder.reminder_type)
   const Icon = meta.icon
 
@@ -253,16 +262,22 @@ function getReminderMeta(type?: string | null) {
 
 function buildReply(input: string, todayCount: number, weekCount: number): string {
   if (input.includes("周报")) {
-    return `周报可以写四段：本周完成登录入口修正、工作台统计和切换、全局搜索、Word 报表导出；风险是 AI 配置需要继续验证真实 Key；下周建议补数据联动和回归测试。`
+    return `周报可以按三段写：本周推进了哪些计划、今日或逾期事项如何处理、下周还剩 ${weekCount} 个关注项要继续跟进。`
   }
 
   if (input.includes("风险") || input.includes("建议")) {
-    return `建议先看三个风险：登录入口是否只认徐小美、全局搜索是否有结果、报表导出的 Word 格式是否能被正常打开。完成后再处理视觉细节。`
+    return `建议先看今日 ${todayCount} 个待办和本周 ${weekCount} 个关注项，逾期和本周重要计划排在普通计划前面。`
   }
 
   if (input.includes("今天") || input.includes("先做")) {
-    return `今天先处理 ${todayCount} 个提醒：登录入口和全局搜索。它们是入口级功能，优先级高于本周剩余 ${weekCount} 个关注项。`
+    return todayCount > 0 ? `今天先处理 ${todayCount} 个提醒，再按本周队列继续推进。` : `今天没有紧急提醒，可以从本周 ${weekCount} 个关注项里挑重要计划推进。`
   }
 
-  return "收到。我会按当前待办雷达帮你拆优先级：入口问题先闭环，配置和报表随后验证，最后做视觉细节。"
+  return `收到。我会按当前待办雷达帮你拆推进顺序：今日 ${todayCount} 项优先，本周 ${weekCount} 项按重要程度和截止日期推进。`
+}
+
+function buildChatContext(summary: ReturnType<typeof buildDashboardSummary>): string {
+  const today = summary.todayReminders.map((item) => `${item.title}：${item.description}`).join("；") || "无"
+  const week = summary.weekReminders.map((item) => `${item.title}：${item.description}`).join("；") || "无"
+  return `今日待办 ${summary.todayPlans.length} 项：${today}；本周待办 ${summary.weekPlans.length} 项：${week}；本周重要 ${summary.importantCount} 项；本周未完成 ${summary.unfinishedCount} 项；平均进度 ${summary.averageProgress}%。`
 }

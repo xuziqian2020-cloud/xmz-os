@@ -2,13 +2,17 @@
 
 import Link from "next/link"
 import { useEffect, useMemo, useState } from "react"
+import { BulkActionBar } from "@/components/common/bulk-action-bar"
+import { DeleteButton } from "@/components/common/delete-button"
 import type { KnowledgeDocument } from "@/lib/database.types"
 
 export default function KnowledgePage() {
   const [docs, setDocs] = useState<KnowledgeDocument[]>([])
   const [search, setSearch] = useState("")
   const [category, setCategory] = useState("")
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
+  const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState("")
 
   useEffect(() => {
@@ -46,9 +50,35 @@ export default function KnowledgePage() {
     return docs.filter((doc) => {
       if (category && doc.category !== category) return false
       if (!keyword) return true
-      return `${doc.title ?? ""} ${doc.content ?? ""}`.toLowerCase().includes(keyword)
+      return matchesKnowledge(doc, keyword)
     })
   }, [docs, search, category])
+
+  const allSelected = filteredDocs.length > 0 && filteredDocs.every((doc) => selectedIds.includes(doc.id))
+
+  function toggleSelection(id: string) {
+    setSelectedIds((prev) => prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id])
+  }
+
+  function toggleAll() {
+    setSelectedIds(allSelected ? [] : filteredDocs.map((doc) => doc.id))
+  }
+
+  async function handleBulkDelete() {
+    if (selectedIds.length === 0) return
+    if (!window.confirm(`确定批量删除 ${selectedIds.length} 篇文档吗？`)) return
+    setDeleting(true)
+    const ids = [...selectedIds]
+    try {
+      for (const id of ids) {
+        await fetch(`/api/knowledge/${id}`, { method: "DELETE" })
+      }
+      setDocs((prev) => prev.filter((doc) => !ids.includes(doc.id)))
+      setSelectedIds([])
+    } finally {
+      setDeleting(false)
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -66,7 +96,7 @@ export default function KnowledgePage() {
         <input
           value={search}
           onChange={(event) => setSearch(event.target.value)}
-          placeholder="搜索文档标题或内容..."
+          placeholder="查询文档标题、内容或标签..."
           className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm outline-none focus:border-primary/30 focus:ring-1 focus:ring-primary/20"
         />
         <select
@@ -80,6 +110,16 @@ export default function KnowledgePage() {
           ))}
         </select>
       </div>
+
+      <BulkActionBar
+        selectedCount={selectedIds.length}
+        visibleCount={filteredDocs.length}
+        allSelected={allSelected}
+        deleting={deleting}
+        onToggleAll={toggleAll}
+        onClear={() => setSelectedIds([])}
+        onDelete={handleBulkDelete}
+      />
 
       {error && (
         <div className="rounded-lg border border-destructive/25 bg-destructive/10 px-4 py-3 text-sm text-destructive">
@@ -99,21 +139,48 @@ export default function KnowledgePage() {
       ) : (
         <div className="space-y-2">
           {filteredDocs.map((doc) => (
-            <Link key={doc.id} href={`/knowledge/${doc.id}`} className="block rounded-lg border border-border bg-card px-4 py-3 transition-colors hover:border-primary/10 hover:bg-secondary/30">
-              <div className="flex items-center justify-between gap-3">
-                <h3 className="truncate text-sm font-medium">{doc.title}</h3>
-                {doc.category && <span className="shrink-0 rounded bg-secondary px-1.5 py-0.5 text-[11px] text-muted-foreground">{doc.category}</span>}
+            <div key={doc.id} className="rounded-lg border border-border bg-card px-4 py-3 transition-colors hover:border-primary/10 hover:bg-secondary/30">
+              <div className="flex items-start gap-3">
+                <input
+                  type="checkbox"
+                  checked={selectedIds.includes(doc.id)}
+                  onChange={() => toggleSelection(doc.id)}
+                  className="mt-1 h-4 w-4 shrink-0 rounded border-border"
+                />
+                <Link href={`/knowledge/${doc.id}`} className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-3">
+                    <h3 className="truncate text-sm font-medium">{doc.title}</h3>
+                    {doc.category && <span className="shrink-0 rounded bg-secondary px-1.5 py-0.5 text-[11px] text-muted-foreground">{doc.category}</span>}
+                  </div>
+                  {doc.tags && doc.tags.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {doc.tags.map((tag) => <span key={tag} className="rounded-full bg-secondary/70 px-2 py-0.5 text-[10px] text-muted-foreground">{tag}</span>)}
+                    </div>
+                  )}
+                </Link>
               </div>
-              {doc.tags && doc.tags.length > 0 && (
-                <div className="mt-2 flex flex-wrap gap-1">
-                  {doc.tags.map((tag) => <span key={tag} className="rounded-full bg-secondary/70 px-2 py-0.5 text-[10px] text-muted-foreground">{tag}</span>)}
+              <div className="mt-2 flex items-center justify-between gap-3">
+                <p className="text-xs text-muted-foreground">更新于 {new Date(doc.updated_at).toLocaleDateString("zh-CN")}</p>
+                <div className="flex items-center gap-2">
+                  <Link href={`/knowledge/${doc.id}/edit`} className="rounded-md border border-border px-2 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground">编辑</Link>
+                  <DeleteButton endpoint={`/api/knowledge/${doc.id}`} confirmText={`确定删除文档「${doc.title}」吗？`} onDeleted={() => setDocs((prev) => prev.filter((item) => item.id !== doc.id))} />
                 </div>
-              )}
-              <p className="mt-1 text-xs text-muted-foreground">更新于 {new Date(doc.updated_at).toLocaleDateString("zh-CN")}</p>
-            </Link>
+              </div>
+            </div>
           ))}
         </div>
       )}
     </div>
   )
+}
+
+function matchesKnowledge(doc: KnowledgeDocument, keyword: string): boolean {
+  const text = [
+    doc.title,
+    doc.content,
+    doc.category,
+    doc.source,
+    ...(doc.tags || []),
+  ].join(" ").toLowerCase()
+  return text.includes(keyword)
 }

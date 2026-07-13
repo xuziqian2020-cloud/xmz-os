@@ -1,6 +1,7 @@
 // 项目列表页 — 支持演示模式
 import Link from "next/link"
 import { Plus, FolderGit2 } from "lucide-react"
+import { DeleteButton } from "@/components/common/delete-button"
 
 export default async function ProjectsPage() {
   let projects: any[] = []
@@ -31,22 +32,30 @@ export default async function ProjectsPage() {
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {projects.map((project) => (
-            <Link key={project.id} href={`/projects/${project.id}`} className="group rounded-lg border border-border bg-card p-5 transition-all hover:border-primary/20 hover:shadow-sm">
-              <div className="flex items-start justify-between">
-                <h3 className="font-medium group-hover:text-primary">{project.name}</h3>
-                {project.code && <span className="rounded bg-secondary px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground">{project.code}</span>}
-              </div>
-              {project.description && <p className="mt-2 line-clamp-2 text-sm text-muted-foreground">{project.description}</p>}
-              {project.tech_stack && project.tech_stack.length > 0 && (
-                <div className="mt-3 flex flex-wrap gap-1">
-                  {project.tech_stack.slice(0, 4).map((tech: string) => <span key={tech} className="rounded bg-secondary/70 px-1.5 py-0.5 text-[11px] text-muted-foreground">{tech}</span>)}
+            <div key={project.id} className="group rounded-lg border border-border bg-card p-5 transition-all hover:border-primary/20 hover:shadow-sm">
+              <Link href={`/projects/${project.id}`} className="block">
+                <div className="flex items-start justify-between">
+                  <h3 className="font-medium group-hover:text-primary">{project.name}</h3>
+                  {project.code && <span className="rounded bg-secondary px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground">{project.code}</span>}
                 </div>
-              )}
-              <div className="mt-4 flex items-center gap-3 text-xs text-muted-foreground">
-                {project.project_type && <span className="rounded bg-secondary/50 px-1.5 py-0.5">{project.project_type}</span>}
-                <span>更新于 {new Date(project.updated_at).toLocaleDateString("zh-CN")}</span>
+                {project.description && <p className="mt-2 line-clamp-2 text-sm text-muted-foreground">{project.description}</p>}
+                {project.tech_stack && project.tech_stack.length > 0 && (
+                  <div className="mt-3 flex flex-wrap gap-1">
+                    {project.tech_stack.slice(0, 4).map((tech: string) => <span key={tech} className="rounded bg-secondary/70 px-1.5 py-0.5 text-[11px] text-muted-foreground">{tech}</span>)}
+                  </div>
+                )}
+              </Link>
+              <div className="mt-4 flex items-center justify-between gap-3 text-xs text-muted-foreground">
+                <span className="flex min-w-0 items-center gap-3">
+                  {project.project_type && <span className="rounded bg-secondary/50 px-1.5 py-0.5">{project.project_type}</span>}
+                  <span className="truncate">更新于 {new Date(project.updated_at).toLocaleDateString("zh-CN")}</span>
+                </span>
+                <div className="flex shrink-0 items-center gap-2">
+                  <Link href={`/projects/${project.id}/edit`} className="rounded-md border border-border px-2 py-1 transition-colors hover:text-foreground">编辑</Link>
+                  <DeleteButton endpoint={`/api/projects/${project.id}`} confirmText={`确定删除项目「${project.name}」吗？`} />
+                </div>
               </div>
-            </Link>
+            </div>
           ))}
         </div>
       )}

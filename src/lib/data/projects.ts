@@ -10,7 +10,7 @@ export async function getProjects(): Promise<Project[]> {
     .select("*")
     .is("deleted_at", null)
     .order("updated_at", { ascending: false })
-  return (data as Project[]) ?? []
+  return ((data as Project[]) ?? []).map(normalizeProject)
 }
 
 // 获取单个项目
@@ -22,7 +22,7 @@ export async function getProject(id: string): Promise<Project | null> {
     .eq("id", id)
     .is("deleted_at", null)
     .single()
-  return (data as Project) ?? null
+  return data ? normalizeProject(data as Project) : null
 }
 
 // 创建项目
@@ -92,23 +92,47 @@ export async function getProjectStats(projectId: string) {
 
   const [
     { count: planCount },
-    { count: knowledgeCount },
+    { count: knowledgeTotalCount },
+    { count: experienceCount },
     { count: bugCount },
     { count: fileCount },
     { count: ideaCount },
+    { count: promptCount },
+    { count: processCount },
   ] = await Promise.all([
     supabase.from("work_plans").select("*", { count: "exact", head: true }).eq("project_id", projectId).is("deleted_at", null),
     supabase.from("knowledge_documents").select("*", { count: "exact", head: true }).eq("project_id", projectId).is("deleted_at", null),
+    supabase.from("knowledge_documents").select("*", { count: "exact", head: true }).eq("project_id", projectId).eq("category", "经验库").is("deleted_at", null),
     supabase.from("work_plans").select("*", { count: "exact", head: true }).eq("project_id", projectId).eq("type", "bug").is("deleted_at", null),
     supabase.from("files").select("*", { count: "exact", head: true }).eq("project_id", projectId).is("deleted_at", null),
     supabase.from("ideas").select("*", { count: "exact", head: true }).eq("project_id", projectId).is("deleted_at", null),
+    supabase.from("prompt_templates").select("*", { count: "exact", head: true }).eq("project_id", projectId).is("deleted_at", null),
+    supabase.from("process_diagrams").select("*", { count: "exact", head: true }).eq("project_id", projectId).is("deleted_at", null),
   ])
+
+  const knowledgeCount = Math.max((knowledgeTotalCount ?? 0) - (experienceCount ?? 0), 0)
 
   return {
     planCount: planCount ?? 0,
-    knowledgeCount: knowledgeCount ?? 0,
+    knowledgeCount,
     bugCount: bugCount ?? 0,
     fileCount: fileCount ?? 0,
     ideaCount: ideaCount ?? 0,
+    promptCount: promptCount ?? 0,
+    processCount: processCount ?? 0,
+    experienceCount: experienceCount ?? 0,
+  }
+}
+
+export function normalizeProjectTechStack(value: unknown): string[] {
+  if (Array.isArray(value)) return value.map((item) => String(item).trim()).filter(Boolean)
+  if (typeof value === "string") return value.split(",").map((item) => item.trim()).filter(Boolean)
+  return []
+}
+
+function normalizeProject(project: Project): Project {
+  return {
+    ...project,
+    tech_stack: normalizeProjectTechStack((project as any).tech_stack),
   }
 }
