@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
-import { isAdminLoginName, normalizeLoginName } from "./local-admin"
+import { buildLocalAdminHeaders, isAdminLoginName, normalizeLoginName } from "./local-admin"
 
 describe("local admin login helpers", () => {
   it("只允许徐小美触发免密入口", () => {
@@ -17,5 +17,10 @@ describe("local admin login helpers", () => {
 
   it("普通登录名保持邮箱小写规范化", () => {
     assert.equal(normalizeLoginName(" User@Example.com "), "user@example.com")
+  })
+
+  it("本地管理员请求会带明确的接口读取标识", () => {
+    assert.deepEqual(buildLocalAdminHeaders(true), { "x-xmz-local-admin": "1" })
+    assert.deepEqual(buildLocalAdminHeaders(false), {})
   })
 })

@@ -126,14 +126,14 @@ export function UserProfileButton({
       </button>
 
       {open && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 p-4" onClick={() => setOpen(false)}>
+        <div data-testid="profile-modal-backdrop" className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 p-4">
           <div className="w-full max-w-lg rounded-xl border border-border bg-card shadow-2xl" onClick={(event) => event.stopPropagation()}>
             <div className="flex items-center justify-between border-b border-border p-5">
               <div>
                 <h2 className="text-xl font-semibold">个人信息</h2>
                 <p className="mt-1 text-sm text-muted-foreground">更改头像、名字和常用个人资料</p>
               </div>
-              <button type="button" onClick={() => setOpen(false)} className="rounded-md p-2 text-muted-foreground hover:bg-secondary hover:text-foreground">
+              <button type="button" aria-label="关闭个人信息" onClick={() => setOpen(false)} className="rounded-md p-2 text-muted-foreground hover:bg-secondary hover:text-foreground">
                 <X className="h-5 w-5" />
               </button>
             </div>

@@ -14,17 +14,16 @@ import {
   X,
 } from "lucide-react"
 import { UserProfileButton } from "@/components/profile/user-profile-button"
-import { ADMIN_REMEMBER_FLAG } from "@/lib/auth/local-admin"
+import { ADMIN_REMEMBER_FLAG, buildLocalAdminHeaders } from "@/lib/auth/local-admin"
 import { selectBrowserAiProvider } from "@/lib/ai/local-providers"
 import {
   ASSISTANT_COMMANDS,
   buildAssistantCreateRequest,
-  buildAssistantQueryRequest,
   detectAssistantCommand,
-  formatAssistantQueryResult,
   getMissingCreateInfoMessage,
   type DetectedAssistantCommand,
 } from "@/lib/assistant/commands"
+import { formatAssistantSqlQueryResult } from "@/lib/assistant/sql"
 import {
   buildDashboardSummary,
   type DashboardPlanLike,
@@ -64,6 +63,7 @@ export default function AISecretaryPage() {
   const [chatInput, setChatInput] = useState("")
   const [attachments, setAttachments] = useState<ChatAttachment[]>([])
   const [sending, setSending] = useState(false)
+  const [commandsOpen, setCommandsOpen] = useState(false)
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([
     { role: "assistant", content: "我是小美。你可以问我今天先做什么，也可以点下面的指令让我新增或查询资料。" },
   ])
@@ -79,7 +79,7 @@ export default function AISecretaryPage() {
       setLoading(true)
       setError("")
       try {
-        const res = await fetch("/api/work-plans?limit=200", { cache: "no-store" })
+        const res = await fetch("/api/work-plans?limit=200", { cache: "no-store", headers: buildLocalAdminHeaders(isRememberedAdmin()) })
         const data = await res.json()
         if (!res.ok) throw new Error(data.error || "工作计划加载失败")
         if (!cancelled) setPlans(Array.isArray(data) ? data : [])
@@ -170,12 +170,10 @@ export default function AISecretaryPage() {
 
   async function executeAssistantCommand(command: DetectedAssistantCommand, files: ChatAttachment[]): Promise<string> {
     if (command.action === "query") {
-      const query = buildAssistantQueryRequest(command)
-      if (!query) return ""
-      const res = await fetch(query.endpoint, { cache: "no-store" })
+      const res = await fetch(`/api/assistant/query?text=${encodeURIComponent(`${command.label}${command.bodyText ? ` ${command.bodyText}` : ""}`)}`, { cache: "no-store", headers: buildLocalAdminHeaders(isRememberedAdmin()) })
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error || `${query.resultLabel}查询失败`)
-      return formatAssistantQueryResult(query.resultLabel, Array.isArray(data) ? data : [])
+      if (!res.ok) return formatQueryFailure(data, command.label)
+      return formatAssistantSqlQueryResult(data.sql, data.resultLabel, Array.isArray(data.rows) ? data.rows : [])
     }
 
     if (command.entity === "file") {
@@ -307,18 +305,27 @@ export default function AISecretaryPage() {
           </div>
 
           <div className="border-t border-border p-4">
-            <div className="mb-3 flex flex-wrap gap-2">
-              {ASSISTANT_COMMANDS.map((suggestion) => (
-                <button
-                  key={suggestion.label}
-                  type="button"
-                  onClick={() => handleChatSubmit(suggestion.prompt)}
-                  className="rounded-full border border-border px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground"
-                >
-                  {suggestion.label}
-                </button>
-              ))}
-            </div>
+            <button
+              type="button"
+              onClick={() => setCommandsOpen((open) => !open)}
+              className="mb-3 rounded-md border border-border px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground"
+            >
+              {commandsOpen ? "收起指令" : "指令"}
+            </button>
+            {commandsOpen && (
+              <div className="mb-3 flex max-h-32 flex-wrap gap-2 overflow-y-auto rounded-lg border border-border bg-background p-2">
+                {ASSISTANT_COMMANDS.map((suggestion) => (
+                  <button
+                    key={suggestion.label}
+                    type="button"
+                    onClick={() => setChatInput(suggestion.prompt)}
+                    className="rounded-full border border-border px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground"
+                  >
+                    {suggestion.label}
+                  </button>
+                ))}
+              </div>
+            )}
             {attachments.length > 0 && (
               <AttachmentPreviewList attachments={attachments} onRemove={removeAttachment} />
             )}
@@ -383,6 +390,16 @@ function AttachmentPreviewList({
       ))}
     </div>
   )
+}
+
+function isRememberedAdmin(): boolean {
+  if (typeof window === "undefined") return false
+  return window.localStorage.getItem(ADMIN_REMEMBER_FLAG) === "1"
+}
+
+function formatQueryFailure(data: any, fallbackLabel: string): string {
+  if (!data?.sql) return data?.error || `${fallbackLabel}失败`
+  return `${formatAssistantSqlQueryResult(data.sql, data.resultLabel || fallbackLabel, Array.isArray(data.rows) ? data.rows : [])}\n\n查询失败：${data.error || `${fallbackLabel}失败`}`
 }
 
 function ReminderSection({

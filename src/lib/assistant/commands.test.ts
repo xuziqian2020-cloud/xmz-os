@@ -1,4 +1,5 @@
 import assert from "node:assert/strict"
+import { readFileSync } from "node:fs"
 import { describe, it } from "node:test"
 import {
   ASSISTANT_COMMANDS,
@@ -6,6 +7,7 @@ import {
   buildAssistantQueryRequest,
   detectAssistantCommand,
 } from "./commands"
+import { buildAssistantSqlQuery } from "./sql"
 
 describe("assistant commands", () => {
   it("exposes the requested create and query shortcuts", () => {
@@ -70,5 +72,28 @@ describe("assistant commands", () => {
       endpoint: "/api/files",
       resultLabel: "文件",
     })
+  })
+
+  it("builds safe SQL for query commands before querying Supabase", () => {
+    assert.deepEqual(buildAssistantSqlQuery(detectAssistantCommand("查询bug 登录")!), {
+      resultLabel: "Bug",
+      table: "work_plans",
+      select: "id,title,status,priority,due_date,created_at",
+      filters: [{ field: "type", value: "bug" }],
+      searchFields: ["title", "description", "bug_symptom"],
+      searchText: "登录",
+      orderBy: "created_at",
+      limit: 10,
+      sql: "select id,title,status,priority,due_date,created_at from work_plans where deleted_at is null and type = 'bug' and (title ilike '%登录%' or description ilike '%登录%' or bug_symptom ilike '%登录%') order by created_at desc limit 10;",
+    })
+  })
+
+  it("assistant query route builds SQL before auth and keeps local admin reads explicit", () => {
+    const source = readFileSync("src/app/api/assistant/query/route.ts", "utf8")
+
+    assert.ok(source.indexOf("buildAssistantSqlQuery(command)") < source.indexOf("supabase.auth.getUser()"))
+    assert.match(source, /isLocalAdminRequest\(request\)/)
+    assert.match(source, /x-xmz-local-admin/)
+    assert.match(source, /sql: spec\.sql/)
   })
 })

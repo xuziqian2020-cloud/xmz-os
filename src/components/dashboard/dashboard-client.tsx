@@ -30,12 +30,11 @@ import { selectBrowserAiProvider } from "@/lib/ai/local-providers"
 import {
   ASSISTANT_COMMANDS,
   buildAssistantCreateRequest,
-  buildAssistantQueryRequest,
   detectAssistantCommand,
-  formatAssistantQueryResult,
   getMissingCreateInfoMessage,
 } from "@/lib/assistant/commands"
-import { ADMIN_REMEMBER_FLAG } from "@/lib/auth/local-admin"
+import { formatAssistantSqlQueryResult } from "@/lib/assistant/sql"
+import { ADMIN_REMEMBER_FLAG, buildLocalAdminHeaders } from "@/lib/auth/local-admin"
 import {
   buildDashboardSummary,
   normalizeProgress,
@@ -110,13 +109,10 @@ export function DashboardClient({
       const command = detectAssistantCommand(text)
       if (command) {
         if (command.action === "query") {
-          const query = buildAssistantQueryRequest(command)
-          if (query) {
-            const res = await fetch(query.endpoint, { cache: "no-store" })
-            const data = await res.json()
-            setChatHistory((prev) => [...prev, { role: "assistant", content: res.ok ? formatAssistantQueryResult(query.resultLabel, Array.isArray(data) ? data : []) : data.error || `${query.resultLabel}查询失败` }])
-            return
-          }
+          const res = await fetch(`/api/assistant/query?text=${encodeURIComponent(text)}`, { cache: "no-store", headers: buildLocalAdminHeaders(isRememberedAdmin()) })
+          const data = await res.json()
+          setChatHistory((prev) => [...prev, { role: "assistant", content: res.ok ? formatAssistantSqlQueryResult(data.sql, data.resultLabel, Array.isArray(data.rows) ? data.rows : []) : formatQueryFailure(data, command.label) }])
+          return
         } else {
           const request = buildAssistantCreateRequest(command)
           if (!request) {
@@ -442,6 +438,8 @@ function ChatDrawer({
   onInputChange: (value: string) => void
   onSubmit: (event?: FormEvent<HTMLFormElement>, preset?: string) => void
 }) {
+  const [commandsOpen, setCommandsOpen] = useState(false)
+
   if (!open) return null
 
   return (
@@ -484,18 +482,27 @@ function ChatDrawer({
         </div>
 
         <form onSubmit={(event) => onSubmit(event)} className="border-t border-border p-4">
-          <div className="mb-3 flex flex-wrap gap-2">
-            {ASSISTANT_COMMANDS.map((item) => (
-              <button
-                key={item.label}
-                type="button"
-                onClick={() => onSubmit(undefined, item.prompt)}
-                className="rounded-full border border-border px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground"
-              >
-                {item.label}
-              </button>
-            ))}
-          </div>
+          <button
+            type="button"
+            onClick={() => setCommandsOpen((open) => !open)}
+            className="mb-3 rounded-md border border-border px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground"
+          >
+            {commandsOpen ? "收起指令" : "指令"}
+          </button>
+          {commandsOpen && (
+            <div className="mb-3 flex max-h-32 flex-wrap gap-2 overflow-y-auto rounded-lg border border-border bg-background p-2">
+              {ASSISTANT_COMMANDS.map((item) => (
+                <button
+                  key={item.label}
+                  type="button"
+                  onClick={() => onInputChange(item.prompt)}
+                  className="rounded-full border border-border px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground"
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          )}
           <div className="flex items-center gap-2">
             <input
               value={input}
@@ -515,6 +522,16 @@ function ChatDrawer({
       </aside>
     </div>
   )
+}
+
+function isRememberedAdmin(): boolean {
+  if (typeof window === "undefined") return false
+  return window.localStorage.getItem(ADMIN_REMEMBER_FLAG) === "1"
+}
+
+function formatQueryFailure(data: any, fallbackLabel: string): string {
+  if (!data?.sql) return data?.error || `${fallbackLabel}失败`
+  return `${formatAssistantSqlQueryResult(data.sql, data.resultLabel || fallbackLabel, Array.isArray(data.rows) ? data.rows : [])}\n\n查询失败：${data.error || `${fallbackLabel}失败`}`
 }
 
 function ProjectTile({ icon: Icon, title, desc, href }: { icon: IconComponent; title: string; desc: string; href: string }) {

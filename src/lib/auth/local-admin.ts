@@ -9,3 +9,8 @@ export function isAdminLoginName(value: string): boolean {
 export function normalizeLoginName(value: string): string {
   return value.trim().toLowerCase()
 }
+
+export function buildLocalAdminHeaders(enabled: boolean): Record<string, string> {
+  if (!enabled) return {}
+  return { "x-xmz-local-admin": "1" }
+}

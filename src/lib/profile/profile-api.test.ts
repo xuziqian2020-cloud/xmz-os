@@ -29,6 +29,9 @@ describe("user profile persistence", () => {
 
     assert.match(source, /export function UserProfileButton/)
     assert.match(source, /onClick=\{\(\) => setOpen\(true\)\}/)
+    assert.match(source, /data-testid="profile-modal-backdrop"/)
+    assert.doesNotMatch(source, /data-testid="profile-modal-backdrop"[\s\S]{0,160}onClick=\{\(\) => setOpen\(false\)\}/)
+    assert.match(source, /aria-label="关闭个人信息"/)
     assert.match(source, /更改头像/)
     assert.match(source, /保存个人信息/)
     assert.match(source, /\/api\/profile/)
