@@ -3,6 +3,27 @@ import { createClient } from "@/lib/supabase/server"
 import type { WorkPlan } from "@/lib/database.types"
 import { normalizePriority, normalizeStatusForType } from "@/lib/work-plans/status-rules"
 
+type DashboardWorkPlanSelectedQuery<TSelf> = {
+  is(column: string, value: null): TSelf
+  order(column: string, options?: { ascending?: boolean; nullsFirst?: boolean }): TSelf
+}
+
+type DashboardWorkPlanBaseQuery<T> = {
+  select(columns: string): T
+}
+
+export function applyDashboardWorkPlanQuery<T extends DashboardWorkPlanSelectedQuery<T>>(
+  query: DashboardWorkPlanBaseQuery<T>
+): T {
+  return query
+    .select("*")
+    // 工作台必须按截止时间组织待办，避免旧创建事项被创建时间排序挤出今日/本周视图。
+    .is("deleted_at", null)
+    .order("due_date", { ascending: true, nullsFirst: false })
+    .order("priority", { ascending: false })
+    .order("created_at", { ascending: false })
+}
+
 export async function getWorkPlans(filters?: {
   project_id?: string
   type?: string
@@ -25,6 +46,12 @@ export async function getWorkPlans(filters?: {
   if (filters?.limit) query = query.limit(filters.limit)
 
   const { data } = await query
+  return (data as WorkPlan[]) ?? []
+}
+
+export async function getDashboardWorkPlans(): Promise<WorkPlan[]> {
+  const supabase = createClient()
+  const { data } = await applyDashboardWorkPlanQuery(supabase.from("work_plans"))
   return (data as WorkPlan[]) ?? []
 }
 

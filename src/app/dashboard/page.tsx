@@ -1,5 +1,5 @@
 import { DashboardClient } from "@/components/dashboard/dashboard-client"
-import { getWorkPlans } from "@/lib/data/work-plans"
+import { getDashboardWorkPlans } from "@/lib/data/work-plans"
 
 export const dynamic = "force-dynamic"
 
@@ -8,7 +8,7 @@ export default async function DashboardPage() {
   let error = ""
 
   try {
-    plans = await getWorkPlans({ limit: 200 })
+    plans = await getDashboardWorkPlans()
   } catch (e: any) {
     error = e.message || "工作计划加载失败"
   }
