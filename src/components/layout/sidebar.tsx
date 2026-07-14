@@ -9,6 +9,7 @@ import { ADMIN_REMEMBER_FLAG, REMEMBER_CREDENTIALS_KEY } from "@/lib/auth/local-
 import { createClient } from "@/lib/supabase/client"
 import { cn } from "@/lib/utils"
 import { mainMenuItems, settingMenuItems, toolMenuItems } from "@/lib/menu-items"
+import { UserProfileButton } from "@/components/profile/user-profile-button"
 
 export function Sidebar() {
   const pathname = usePathname()
@@ -59,15 +60,7 @@ export function Sidebar() {
       <div className="space-y-3 border-t border-border p-3">
         <ThemeToggle />
         <div className="rounded-lg border border-border bg-card p-3">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 overflow-hidden rounded-full border border-border bg-background">
-              <img src="/images/xiaomei-avatar.png" alt="小美头像" className="h-full w-full object-cover" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-sm font-semibold">{adminMode ? "徐小美" : "开发者"}</p>
-              <p className="text-xs text-muted-foreground">个人工作台</p>
-            </div>
-          </div>
+          <UserProfileButton fallbackName={adminMode ? "徐小美" : "开发者"} showText className="w-full p-1" />
         </div>
         <button
           type="button"

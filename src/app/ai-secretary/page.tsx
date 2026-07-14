@@ -8,11 +8,23 @@ import {
   CheckCircle2,
   Clock3,
   FileText,
+  Paperclip,
   MessageSquareText,
   Send,
+  X,
 } from "lucide-react"
+import { UserProfileButton } from "@/components/profile/user-profile-button"
 import { ADMIN_REMEMBER_FLAG } from "@/lib/auth/local-admin"
 import { selectBrowserAiProvider } from "@/lib/ai/local-providers"
+import {
+  ASSISTANT_COMMANDS,
+  buildAssistantCreateRequest,
+  buildAssistantQueryRequest,
+  detectAssistantCommand,
+  formatAssistantQueryResult,
+  getMissingCreateInfoMessage,
+  type DetectedAssistantCommand,
+} from "@/lib/assistant/commands"
 import {
   buildDashboardSummary,
   type DashboardPlanLike,
@@ -29,14 +41,31 @@ const typeLabels: Record<string, string> = {
   custom: "提醒",
 }
 
+type ChatAttachment = {
+  id: string
+  name: string
+  size: number
+  type: string
+  previewUrl?: string
+  file?: File
+}
+
+type ChatMessage = {
+  role: "user" | "assistant"
+  content: string
+  attachments?: ChatAttachment[]
+}
+
 export default function AISecretaryPage() {
   const [adminMode, setAdminMode] = useState(false)
   const [plans, setPlans] = useState<DashboardPlanLike[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
   const [chatInput, setChatInput] = useState("")
-  const [chatHistory, setChatHistory] = useState<Array<{ role: "user" | "assistant"; content: string }>>([
-    { role: "assistant", content: "我是小美。你可以问我今天先做什么、怎么写周报，或者让我要点式列出风险。" },
+  const [attachments, setAttachments] = useState<ChatAttachment[]>([])
+  const [sending, setSending] = useState(false)
+  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([
+    { role: "assistant", content: "我是小美。你可以问我今天先做什么，也可以点下面的指令让我新增或查询资料。" },
   ])
 
   useEffect(() => {
@@ -75,30 +104,152 @@ export default function AISecretaryPage() {
   const todayReminders = summary.todayReminders
   const weekReminders = summary.weekReminders
 
-  function handleChatSubmit(nextText?: string) {
-    const userMessage = (nextText || chatInput).trim()
-    if (!userMessage) return
+  function handleAttachmentChange(files: FileList | null) {
+    if (!files) return
+    const nextAttachments = Array.from(files).map((file) => ({
+      id: `${Date.now()}-${file.name}-${Math.random().toString(16).slice(2)}`,
+      name: file.name,
+      size: file.size,
+      type: file.type || "application/octet-stream",
+      previewUrl: file.type.startsWith("image/") ? URL.createObjectURL(file) : undefined,
+      file,
+    }))
+    setAttachments((prev) => [...prev, ...nextAttachments])
+  }
 
-    const nextHistory: Array<{ role: "user" | "assistant"; content: string }> = [...chatHistory, { role: "user", content: userMessage }]
+  function removeAttachment(id: string) {
+    setAttachments((prev) => {
+      const target = prev.find((item) => item.id === id)
+      if (target?.previewUrl) URL.revokeObjectURL(target.previewUrl)
+      return prev.filter((item) => item.id !== id)
+    })
+  }
+
+  async function handleChatSubmit(nextText?: string) {
+    const userMessage = (nextText || chatInput).trim()
+    if (!userMessage && attachments.length === 0) return
+
+    const messageAttachments = attachments
+    const nextHistory: ChatMessage[] = [...chatHistory, { role: "user", content: userMessage || "我上传了附件", attachments: messageAttachments }]
     setChatHistory(nextHistory)
     setChatInput("")
+    setAttachments([])
+    setSending(true)
 
-    fetch("/api/ai-chat", {
+    try {
+      const command = detectAssistantCommand(userMessage)
+      const actionReply = command ? await executeAssistantCommand(command, messageAttachments) : ""
+      if (actionReply) {
+        setChatHistory((prev) => [...prev, { role: "assistant", content: actionReply }])
+        return
+      }
+
+      const messagesForAi = nextHistory.map((message) => ({
+        role: message.role,
+        content: message.attachments?.length
+          ? `${message.content}\n附件：${message.attachments.map((item) => `${item.name}(${item.type || "file"})`).join("、")}`
+          : message.content,
+      }))
+      const res = await fetch("/api/ai-chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: messagesForAi,
+          context: `${buildChatContext(summary)}；当前消息附件：${messageAttachments.map((item) => item.name).join("、") || "无"}`,
+          provider: selectBrowserAiProvider(),
+        }),
+      })
+      const data = await res.json()
+      setChatHistory((prev) => [...prev, { role: "assistant", content: res.ok ? data.answer : data.error || buildReply(userMessage, todayReminders.length, weekReminders.length) }])
+    } catch (e: any) {
+      setChatHistory((prev) => [...prev, { role: "assistant", content: e.message || buildReply(userMessage, todayReminders.length, weekReminders.length) }])
+    } finally {
+      setSending(false)
+    }
+  }
+
+  async function executeAssistantCommand(command: DetectedAssistantCommand, files: ChatAttachment[]): Promise<string> {
+    if (command.action === "query") {
+      const query = buildAssistantQueryRequest(command)
+      if (!query) return ""
+      const res = await fetch(query.endpoint, { cache: "no-store" })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || `${query.resultLabel}查询失败`)
+      return formatAssistantQueryResult(query.resultLabel, Array.isArray(data) ? data : [])
+    }
+
+    if (command.entity === "file") {
+      if (files.length === 0) return getMissingCreateInfoMessage(command)
+      return await uploadFilesFromAssistant(files)
+    }
+
+    if ((command.entity === "knowledge" || command.entity === "experience") && files.length > 0) {
+      return await importDocumentsFromAssistant(command, files)
+    }
+
+    const request = buildAssistantCreateRequest(command)
+    if (!request) return getMissingCreateInfoMessage(command)
+    const res = await fetch(request.endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        messages: nextHistory,
-        context: buildChatContext(summary),
-        provider: selectBrowserAiProvider(),
-      }),
+      body: JSON.stringify(request.body),
     })
-      .then((res) => res.json().then((data) => ({ ok: res.ok, data })))
-      .then(({ ok, data }) => {
-        setChatHistory((prev) => [...prev, { role: "assistant", content: ok ? data.answer : data.error || buildReply(userMessage, todayReminders.length, weekReminders.length) }])
-      })
-      .catch(() => {
-        setChatHistory((prev) => [...prev, { role: "assistant", content: buildReply(userMessage, todayReminders.length, weekReminders.length) }])
-      })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.error || `${command.label}失败`)
+    if (request.endpoint === "/api/work-plans") setPlans((prev) => [data, ...prev])
+    return `已完成${command.label}：${data.title || data.file_name || request.body.title}。`
+  }
+
+  async function uploadFilesFromAssistant(files: ChatAttachment[]): Promise<string> {
+    let successCount = 0
+    const errors: string[] = []
+    for (const attachment of files) {
+      if (!attachment.file) continue
+      const formData = new FormData()
+      formData.append("file", attachment.file)
+      const res = await fetch("/api/files/upload", { method: "POST", body: formData })
+      if (res.ok) {
+        successCount += 1
+      } else {
+        const data = await res.json().catch(() => ({}))
+        errors.push(`${attachment.name}：${data.error || "上传失败"}`)
+      }
+    }
+    if (successCount === 0 && errors.length > 0) throw new Error(errors.join("；"))
+    return `已新增文件 ${successCount} 个${errors.length > 0 ? `，失败 ${errors.length} 个：${errors.slice(0, 2).join("；")}` : ""}。`
+  }
+
+  async function importDocumentsFromAssistant(command: DetectedAssistantCommand, files: ChatAttachment[]): Promise<string> {
+    let successCount = 0
+    const errors: string[] = []
+    for (const attachment of files) {
+      if (!attachment.file) continue
+      try {
+        const formData = new FormData()
+        formData.append("file", attachment.file)
+        const extractRes = await fetch("/api/tools/extract-document", { method: "POST", body: formData })
+        const extracted = await extractRes.json()
+        if (!extractRes.ok) throw new Error(extracted.error || "文件解析失败")
+
+        const saveRes = await fetch("/api/knowledge", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: extracted.title || attachment.name,
+            content: extracted.content || "",
+            source: extracted.source || attachment.name,
+            category: command.entity === "experience" ? "经验库" : "技术文档",
+          }),
+        })
+        const saved = await saveRes.json()
+        if (!saveRes.ok) throw new Error(saved.error || "保存失败")
+        successCount += 1
+      } catch (e: any) {
+        errors.push(`${attachment.name}：${e.message || "导入失败"}`)
+      }
+    }
+    if (successCount === 0 && errors.length > 0) throw new Error(errors.join("；"))
+    return `已新增${command.entity === "experience" ? "经验" : "知识库文档"} ${successCount} 条${errors.length > 0 ? `，失败 ${errors.length} 条：${errors.slice(0, 2).join("；")}` : ""}。`
   }
 
   return (
@@ -110,8 +261,8 @@ export default function AISecretaryPage() {
           {error && <p className="mt-3 text-sm text-destructive">{error}</p>}
         </div>
         <div className="rounded-xl border border-border bg-card px-4 py-3">
-          <p className="text-sm text-muted-foreground">当前账号</p>
-          <p className="mt-1 text-base font-semibold">{displayName}</p>
+          <p className="mb-2 text-sm text-muted-foreground">当前账号</p>
+          <UserProfileButton fallbackName={displayName} showText className="w-full p-1" />
         </div>
       </div>
 
@@ -123,9 +274,7 @@ export default function AISecretaryPage() {
 
         <section className="flex h-[calc(100dvh-12rem)] min-h-[560px] flex-col rounded-xl border border-border bg-card">
           <div className="flex items-center gap-3 border-b border-border p-5">
-            <div className="h-11 w-11 overflow-hidden rounded-full border border-border bg-background">
-              <img src="/images/xiaomei-avatar.png" alt="小美头像" className="h-full w-full object-cover" />
-            </div>
+            <UserProfileButton fallbackName={displayName} />
             <div>
               <h2 className="text-xl font-semibold">和小美聊聊</h2>
               <p className="text-sm text-muted-foreground">本地助手按重要程度和截止日期整理</p>
@@ -149,6 +298,9 @@ export default function AISecretaryPage() {
                   )}
                 >
                   {message.content}
+                  {message.attachments && message.attachments.length > 0 && (
+                    <AttachmentPreviewList attachments={message.attachments} readonly />
+                  )}
                 </div>
               </div>
             ))}
@@ -156,18 +308,25 @@ export default function AISecretaryPage() {
 
           <div className="border-t border-border p-4">
             <div className="mb-3 flex flex-wrap gap-2">
-              {["今天先做什么", "帮我写周报要点", "有什么风险建议"].map((suggestion) => (
+              {ASSISTANT_COMMANDS.map((suggestion) => (
                 <button
-                  key={suggestion}
+                  key={suggestion.label}
                   type="button"
-                  onClick={() => handleChatSubmit(suggestion)}
+                  onClick={() => handleChatSubmit(suggestion.prompt)}
                   className="rounded-full border border-border px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground"
                 >
-                  {suggestion}
+                  {suggestion.label}
                 </button>
               ))}
             </div>
+            {attachments.length > 0 && (
+              <AttachmentPreviewList attachments={attachments} onRemove={removeAttachment} />
+            )}
             <div className="flex items-center gap-2">
+              <label className="flex h-12 w-12 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-border text-muted-foreground hover:text-foreground" title="发送图片或文件">
+                <Paperclip className="h-5 w-5" />
+                <input type="file" multiple onChange={(event) => handleAttachmentChange(event.target.files)} className="hidden" />
+              </label>
               <input
                 value={chatInput}
                 onChange={(event) => setChatInput(event.target.value)}
@@ -178,7 +337,7 @@ export default function AISecretaryPage() {
               <button
                 type="button"
                 onClick={() => handleChatSubmit()}
-                disabled={!chatInput.trim()}
+                disabled={sending || (!chatInput.trim() && attachments.length === 0)}
                 className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-emerald-600 text-white transition-colors hover:bg-emerald-500 disabled:opacity-40"
               >
                 <Send className="h-5 w-5" />
@@ -187,6 +346,41 @@ export default function AISecretaryPage() {
           </div>
         </section>
       </div>
+    </div>
+  )
+}
+
+function AttachmentPreviewList({
+  attachments,
+  onRemove,
+  readonly = false,
+}: {
+  attachments: ChatAttachment[]
+  onRemove?: (id: string) => void
+  readonly?: boolean
+}) {
+  return (
+    <div className="mt-3 grid gap-2">
+      {attachments.map((attachment) => (
+        <div key={attachment.id} className="flex items-center gap-2 rounded-lg border border-border bg-background/70 p-2 text-xs">
+          {attachment.previewUrl ? (
+            <img src={attachment.previewUrl} alt={attachment.name} className="h-10 w-10 shrink-0 rounded object-cover" />
+          ) : (
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded bg-secondary text-muted-foreground">
+              <FileText className="h-4 w-4" />
+            </span>
+          )}
+          <span className="min-w-0 flex-1">
+            <span className="block truncate font-medium">{attachment.name}</span>
+            <span className="text-muted-foreground">{formatFileSize(attachment.size)}</span>
+          </span>
+          {!readonly && onRemove && (
+            <button type="button" onClick={() => onRemove(attachment.id)} className="rounded p-1 text-muted-foreground hover:bg-secondary hover:text-foreground">
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+      ))}
     </div>
   )
 }
@@ -280,4 +474,10 @@ function buildChatContext(summary: ReturnType<typeof buildDashboardSummary>): st
   const today = summary.todayReminders.map((item) => `${item.title}：${item.description}`).join("；") || "无"
   const week = summary.weekReminders.map((item) => `${item.title}：${item.description}`).join("；") || "无"
   return `今日待办 ${summary.todayPlans.length} 项：${today}；本周待办 ${summary.weekPlans.length} 项：${week}；本周重要 ${summary.importantCount} 项；本周未完成 ${summary.unfinishedCount} 项；平均进度 ${summary.averageProgress}%。`
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }

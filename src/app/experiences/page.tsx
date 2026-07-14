@@ -66,10 +66,15 @@ export default function ExperiencesPage() {
           <h1 className="mt-2 text-2xl font-semibold tracking-normal">经验库</h1>
           <p className="mt-1 text-sm text-muted-foreground">沉淀踩坑记录、上线经验、排查路径和可复用做法</p>
         </div>
-        <Link href={`/knowledge/new?category=${encodeURIComponent(EXPERIENCE_CATEGORY)}`} className="inline-flex items-center justify-center gap-2 rounded-md bg-foreground px-3 py-2 text-sm font-medium text-background hover:opacity-90">
-          <Plus className="h-4 w-4" />
-          新增经验
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          <Link href={`/knowledge/new?category=${encodeURIComponent(EXPERIENCE_CATEGORY)}`} className="inline-flex items-center justify-center gap-2 rounded-md border border-border px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground">
+            批量导入经验
+          </Link>
+          <Link href={`/knowledge/new?category=${encodeURIComponent(EXPERIENCE_CATEGORY)}`} className="inline-flex items-center justify-center gap-2 rounded-md bg-foreground px-3 py-2 text-sm font-medium text-background hover:opacity-90">
+            <Plus className="h-4 w-4" />
+            新增经验
+          </Link>
+        </div>
       </div>
 
       <input

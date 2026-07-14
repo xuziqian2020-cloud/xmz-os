@@ -12,6 +12,7 @@ export default function FilesPage() {
   const [search, setSearch] = useState("")
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [deleting, setDeleting] = useState(false)
+  const [uploadMessage, setUploadMessage] = useState("")
 
   const fetchFiles = () => {
     fetch("/api/files").then(r => r.json()).then(d => {
@@ -41,22 +42,38 @@ export default function FilesPage() {
   }
 
   const handleUpload = async (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
+    const fileList = Array.from(e.target.files || [])
+    if (fileList.length === 0) return
     setUploading(true)
     setError("")
+    setUploadMessage("")
 
-    const formData = new FormData()
-    formData.append("file", file)
+    let successCount = 0
+    const uploadedFiles: any[] = []
+    const errors: string[] = []
+    for (const file of fileList) {
+      const formData = new FormData()
+      formData.append("file", file)
 
-    const res = await fetch("/api/files/upload", { method: "POST", body: formData })
-    if (res.ok) {
-      const uploaded = await res.json()
-      setFiles((prev) => [uploaded, ...prev.filter((item) => item.id !== uploaded.id)])
-      e.target.value = ""
-    } else {
-      setError((await res.json()).error || "上传失败")
+      const res = await fetch("/api/files/upload", { method: "POST", body: formData })
+      if (res.ok) {
+        const uploaded = await res.json()
+        uploadedFiles.push(uploaded)
+        successCount += 1
+      } else {
+        const data = await res.json().catch(() => ({}))
+        errors.push(`${file.name}：${data.error || "上传失败"}`)
+      }
     }
+
+    if (uploadedFiles.length > 0) {
+      setFiles((prev) => [...uploadedFiles, ...prev.filter((item) => !uploadedFiles.some((uploaded) => uploaded.id === item.id))])
+      setUploadMessage(`已上传 ${successCount} 个文件`)
+    }
+    if (errors.length > 0) {
+      setError(errors.slice(0, 3).join("；") + (errors.length > 3 ? `；还有 ${errors.length - 3} 个文件失败` : ""))
+    }
+    e.target.value = ""
     setUploading(false)
   }
 
@@ -112,7 +129,7 @@ export default function FilesPage() {
         <div><h1 className="text-lg font-semibold">文件管理</h1><p className="mt-1 text-sm text-muted-foreground">管理项目文档和附件</p></div>
         <label className="inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-md bg-foreground px-3 py-2 text-sm font-medium text-background hover:opacity-90">
           {uploading ? "上传中..." : "+ 上传文件"}
-          <input type="file" onChange={handleUpload} className="hidden" disabled={uploading} />
+          <input type="file" multiple onChange={handleUpload} className="hidden" disabled={uploading} />
         </label>
       </div>
 
@@ -134,6 +151,7 @@ export default function FilesPage() {
       />
 
       {error && <p className="rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive">{error}</p>}
+      {uploadMessage && <p className="rounded-md bg-emerald-500/10 px-3 py-2 text-xs text-emerald-600">{uploadMessage}</p>}
 
       {filteredFiles.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-20">

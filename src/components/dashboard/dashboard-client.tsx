@@ -25,7 +25,16 @@ import {
   X,
 } from "lucide-react"
 import { PlanCompletionSelect, PlanPrioritySelect } from "@/components/plans/plan-status-select"
+import { UserProfileButton } from "@/components/profile/user-profile-button"
 import { selectBrowserAiProvider } from "@/lib/ai/local-providers"
+import {
+  ASSISTANT_COMMANDS,
+  buildAssistantCreateRequest,
+  buildAssistantQueryRequest,
+  detectAssistantCommand,
+  formatAssistantQueryResult,
+  getMissingCreateInfoMessage,
+} from "@/lib/assistant/commands"
 import { ADMIN_REMEMBER_FLAG } from "@/lib/auth/local-admin"
 import {
   buildDashboardSummary,
@@ -98,6 +107,34 @@ export function DashboardClient({
     setChatInput("")
 
     try {
+      const command = detectAssistantCommand(text)
+      if (command) {
+        if (command.action === "query") {
+          const query = buildAssistantQueryRequest(command)
+          if (query) {
+            const res = await fetch(query.endpoint, { cache: "no-store" })
+            const data = await res.json()
+            setChatHistory((prev) => [...prev, { role: "assistant", content: res.ok ? formatAssistantQueryResult(query.resultLabel, Array.isArray(data) ? data : []) : data.error || `${query.resultLabel}查询失败` }])
+            return
+          }
+        } else {
+          const request = buildAssistantCreateRequest(command)
+          if (!request) {
+            setChatHistory((prev) => [...prev, { role: "assistant", content: getMissingCreateInfoMessage(command) }])
+            return
+          }
+          const res = await fetch(request.endpoint, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(request.body),
+          })
+          const data = await res.json()
+          if (res.ok && request.endpoint === "/api/work-plans") setPlans((prev) => [data, ...prev])
+          setChatHistory((prev) => [...prev, { role: "assistant", content: res.ok ? `已完成${command.label}：${data.title || request.body.title}。` : data.error || `${command.label}失败` }])
+          return
+        }
+      }
+
       const res = await fetch("/api/ai-chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -149,9 +186,7 @@ export function DashboardClient({
           <section className="rounded-xl border border-border bg-card p-5">
             <div className="flex items-start justify-between gap-4">
               <div className="flex items-center gap-3">
-                <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-full border border-border bg-background">
-                  <img src="/images/xiaomei-avatar.png" alt="小美头像" className="h-full w-full object-cover" />
-                </div>
+                <UserProfileButton fallbackName={displayName} />
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">AI 研发秘书</p>
                   <h2 className="mt-1 text-xl font-semibold">小美待办雷达</h2>
@@ -417,9 +452,7 @@ function ChatDrawer({
       >
         <div className="flex items-center justify-between border-b border-border p-5">
           <div className="flex items-center gap-3">
-            <div className="h-11 w-11 overflow-hidden rounded-full border border-border bg-background">
-              <img src="/images/xiaomei-avatar.png" alt="小美头像" className="h-full w-full object-cover" />
-            </div>
+            <UserProfileButton fallbackName="徐小美" />
             <div>
               <h2 className="text-xl font-semibold">和小美聊聊</h2>
               <p className="text-sm text-muted-foreground">今日 {summary.todayPlans.length} 项，本周 {summary.weekPlans.length} 项</p>
@@ -452,14 +485,14 @@ function ChatDrawer({
 
         <form onSubmit={(event) => onSubmit(event)} className="border-t border-border p-4">
           <div className="mb-3 flex flex-wrap gap-2">
-            {["今天先做什么", "本周有哪些风险", "帮我整理推进顺序"].map((item) => (
+            {ASSISTANT_COMMANDS.map((item) => (
               <button
-                key={item}
+                key={item.label}
                 type="button"
-                onClick={() => onSubmit(undefined, item)}
+                onClick={() => onSubmit(undefined, item.prompt)}
                 className="rounded-full border border-border px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground"
               >
-                {item}
+                {item.label}
               </button>
             ))}
           </div>
