@@ -59,6 +59,26 @@ describe("assistant commands", () => {
     })
   })
 
+  it("extracts structured fields from natural language create bug commands", () => {
+    const command = detectAssistantCommand("新增一个bug 登录接口500 重要程度：重要 进度：已完成 截止时间:2026年8月1号")
+    assert.equal(command?.action, "create")
+    assert.equal(command?.entity, "bug")
+
+    assert.deepEqual(buildAssistantCreateRequest(command!), {
+      endpoint: "/api/work-plans",
+      body: {
+        type: "bug",
+        title: "登录接口500",
+        description: "",
+        priority: "high",
+        status: "已完成",
+        progress: 100,
+        due_date: "2026-08-01",
+        bug_severity: "high",
+      },
+    })
+  })
+
   it("detects query commands and maps them to existing APIs", () => {
     assert.deepEqual(buildAssistantQueryRequest(detectAssistantCommand("查询bug")!), {
       endpoint: "/api/work-plans?type=bug&limit=10",

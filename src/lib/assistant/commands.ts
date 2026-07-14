@@ -83,20 +83,23 @@ export function detectAssistantCommand(input: string): DetectedAssistantCommand 
 }
 
 export function buildAssistantCreateRequest(command: DetectedAssistantCommand): AssistantRequestSpec | null {
-  const title = cleanTitle(command.bodyText)
+  const fields = parseCreateFields(command.bodyText)
+  const title = fields.title
   if (!title && command.entity !== "file") return null
 
   if (command.entity === "bug") {
+    const priority = fields.priority || "high"
     return {
       endpoint: "/api/work-plans",
       body: {
         type: "bug",
         title,
         description: "",
-        priority: "high",
-        status: "进行中",
-        progress: 0,
-        bug_severity: "high",
+        priority,
+        status: fields.status || "进行中",
+        progress: fields.progress ?? 0,
+        ...(fields.dueDate ? { due_date: fields.dueDate } : {}),
+        bug_severity: priority,
       },
     }
   }
@@ -108,9 +111,10 @@ export function buildAssistantCreateRequest(command: DetectedAssistantCommand): 
         type: command.entity === "requirement" ? "requirement" : "custom",
         title,
         description: "",
-        priority: "medium",
-        status: "进行中",
-        progress: 0,
+        priority: fields.priority || "medium",
+        status: fields.status || "进行中",
+        progress: fields.progress ?? 0,
+        ...(fields.dueDate ? { due_date: fields.dueDate } : {}),
       },
     }
   }
@@ -180,6 +184,93 @@ export function getMissingCreateInfoMessage(command: DetectedAssistantCommand): 
 
 function cleanTitle(text: string): string {
   return text.replace(/^标题\s*[:：]/, "").trim()
+}
+
+function parseCreateFields(text: string): {
+  title: string
+  priority?: "high" | "medium" | "low"
+  status?: "进行中" | "已完成" | "已拒绝"
+  progress?: number
+  dueDate?: string
+} {
+  const priority = parsePriority(text)
+  const statusProgress = parseStatusProgress(text)
+  const dueDate = parseDueDate(text)
+  return {
+    title: cleanTitle(stripFieldFragments(text)),
+    priority,
+    status: statusProgress.status,
+    progress: statusProgress.progress,
+    dueDate,
+  }
+}
+
+function parsePriority(text: string): "high" | "medium" | "low" | undefined {
+  const match = text.match(/(?:重要程度|优先级|优先程度|priority)\s*[:：]?\s*(重要|高|紧急|high|中等|普通|中|medium|低|low)/i)
+  if (!match) return undefined
+  const value = match[1].toLowerCase()
+  if (value === "重要" || value === "高" || value === "紧急" || value === "high") return "high"
+  if (value === "低" || value === "low") return "low"
+  return "medium"
+}
+
+function parseStatusProgress(text: string): {
+  status?: "进行中" | "已完成" | "已拒绝"
+  progress?: number
+} {
+  const statusMatch = text.match(/(?:进度|状态|完成状态)\s*[:：]?\s*(已完成|完成|done|completed|已拒绝|拒绝|驳回|已取消|取消|进行中|处理中|未完成)/i)
+  const percentMatch = text.match(/(?:进度|完成度)\s*[:：]?\s*(\d{1,3})\s*%/)
+  const progress = percentMatch ? clampProgress(Number(percentMatch[1])) : undefined
+
+  if (!statusMatch) {
+    if (progress === undefined) return {}
+    return { status: progress >= 100 ? "已完成" : "进行中", progress }
+  }
+
+  const statusText = statusMatch[1].toLowerCase()
+  if (statusText === "已完成" || statusText === "完成" || statusText === "done" || statusText === "completed") {
+    return { status: "已完成", progress: 100 }
+  }
+  if (statusText === "已拒绝" || statusText === "拒绝" || statusText === "驳回" || statusText === "已取消" || statusText === "取消") {
+    return { status: "已拒绝", progress: 0 }
+  }
+  return { status: "进行中", progress: progress ?? 0 }
+}
+
+function parseDueDate(text: string): string | undefined {
+  const explicitYear = text.match(/(?:截止(?:时间|日期)?|到期(?:时间|日期)?|due\s*date)\s*[:：]?\s*(\d{4})\s*(?:年|[-/])\s*(\d{1,2})\s*(?:月|[-/])\s*(\d{1,2})\s*(?:日|号)?/i)
+  if (explicitYear) return formatDatePart(Number(explicitYear[1]), Number(explicitYear[2]), Number(explicitYear[3]))
+
+  const currentYear = new Date().getFullYear()
+  const withoutYear = text.match(/(?:截止(?:时间|日期)?|到期(?:时间|日期)?|due\s*date)\s*[:：]?\s*(\d{1,2})\s*(?:月|[-/])\s*(\d{1,2})\s*(?:日|号)?/i)
+  if (withoutYear) return formatDatePart(currentYear, Number(withoutYear[1]), Number(withoutYear[2]))
+
+  return undefined
+}
+
+function stripFieldFragments(text: string): string {
+  return text
+    .replace(/(?:重要程度|优先级|优先程度|priority)\s*[:：]?\s*(重要|高|紧急|high|中等|普通|中|medium|低|low)/gi, " ")
+    .replace(/(?:进度|状态|完成状态)\s*[:：]?\s*(已完成|完成|done|completed|已拒绝|拒绝|驳回|已取消|取消|进行中|处理中|未完成)/gi, " ")
+    .replace(/(?:进度|完成度)\s*[:：]?\s*\d{1,3}\s*%/g, " ")
+    .replace(/(?:截止(?:时间|日期)?|到期(?:时间|日期)?|due\s*date)\s*[:：]?\s*\d{4}\s*(?:年|[-/])\s*\d{1,2}\s*(?:月|[-/])\s*\d{1,2}\s*(?:日|号)?/gi, " ")
+    .replace(/(?:截止(?:时间|日期)?|到期(?:时间|日期)?|due\s*date)\s*[:：]?\s*\d{1,2}\s*(?:月|[-/])\s*\d{1,2}\s*(?:日|号)?/gi, " ")
+    .replace(/[，,；;\n]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+}
+
+function formatDatePart(year: number, month: number, day: number): string | undefined {
+  if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) return undefined
+  if (month < 1 || month > 12 || day < 1 || day > 31) return undefined
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`
+}
+
+function clampProgress(progress: number): number {
+  if (!Number.isFinite(progress)) return 0
+  if (progress < 0) return 0
+  if (progress > 100) return 100
+  return Math.round(progress)
 }
 
 function escapeRegExp(value: string): string {

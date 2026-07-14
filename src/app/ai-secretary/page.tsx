@@ -9,6 +9,7 @@ import {
   Clock3,
   FileText,
   Paperclip,
+  Plus,
   MessageSquareText,
   Send,
   X,
@@ -55,6 +56,16 @@ type ChatMessage = {
   attachments?: ChatAttachment[]
 }
 
+type AssistantConversation = {
+  id: string
+  title: string
+  created_at?: string
+  updated_at?: string
+}
+
+const defaultAssistantMessage = "我是小美。你可以问我今天先做什么，也可以点下面的指令让我新增或查询资料。"
+const localConversationStoreKey = "xmz-os-assistant-conversations"
+
 export default function AISecretaryPage() {
   const [adminMode, setAdminMode] = useState(false)
   const [plans, setPlans] = useState<DashboardPlanLike[]>([])
@@ -64,12 +75,18 @@ export default function AISecretaryPage() {
   const [attachments, setAttachments] = useState<ChatAttachment[]>([])
   const [sending, setSending] = useState(false)
   const [commandsOpen, setCommandsOpen] = useState(false)
-  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([
-    { role: "assistant", content: "我是小美。你可以问我今天先做什么，也可以点下面的指令让我新增或查询资料。" },
-  ])
+  const [conversationList, setConversationList] = useState<AssistantConversation[]>([])
+  const [activeConversationId, setActiveConversationId] = useState<string | null>(null)
+  const [conversationLoading, setConversationLoading] = useState(false)
+  const [conversationError, setConversationError] = useState("")
+  const [chatHistory, setChatHistory] = useState<ChatMessage[]>(buildDefaultChatHistory())
 
   useEffect(() => {
     setAdminMode(window.localStorage.getItem(ADMIN_REMEMBER_FLAG) === "1")
+  }, [])
+
+  useEffect(() => {
+    loadConversations()
   }, [])
 
   useEffect(() => {
@@ -125,22 +142,146 @@ export default function AISecretaryPage() {
     })
   }
 
+  async function loadConversations() {
+    setConversationLoading(true)
+    setConversationError("")
+    try {
+      const res = await fetch("/api/assistant/conversations", { cache: "no-store", headers: buildLocalAdminHeaders(isRememberedAdmin()) })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || "历史对话加载失败")
+      const conversations = Array.isArray(data) ? data : []
+      setConversationList(conversations)
+      if (conversations.length > 0) {
+        await loadConversationMessages(conversations[0].id)
+      } else {
+        setActiveConversationId(null)
+        setChatHistory(buildDefaultChatHistory())
+      }
+    } catch (e: any) {
+      const localStore = readLocalConversationStore()
+      setConversationList(localStore.conversations)
+      if (localStore.conversations.length > 0) {
+        const first = localStore.conversations[0]
+        setActiveConversationId(first.id)
+        setChatHistory(localStore.messages[first.id] || buildDefaultChatHistory())
+      } else {
+        setActiveConversationId(null)
+        setChatHistory(buildDefaultChatHistory())
+      }
+      setConversationError("历史对话暂存在本机，数据库迁移完成后会自动保存到 Supabase。")
+    } finally {
+      setConversationLoading(false)
+    }
+  }
+
+  async function loadConversationMessages(conversationId: string) {
+    if (conversationId.startsWith("local-")) {
+      const localStore = readLocalConversationStore()
+      setActiveConversationId(conversationId)
+      setChatHistory(localStore.messages[conversationId] || buildDefaultChatHistory())
+      setConversationError("历史对话暂存在本机，数据库迁移完成后会自动保存到 Supabase。")
+      return
+    }
+
+    setConversationError("")
+    try {
+      const res = await fetch(`/api/assistant/conversations/${conversationId}/messages`, { cache: "no-store", headers: buildLocalAdminHeaders(isRememberedAdmin()) })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || "对话消息加载失败")
+      const messages: ChatMessage[] = Array.isArray(data)
+        ? data.map((item) => ({
+            role: item.role === "assistant" ? "assistant" : "user",
+            content: String(item.content || ""),
+            attachments: Array.isArray(item.attachments) ? item.attachments : [],
+          }))
+        : []
+      setActiveConversationId(conversationId)
+      setChatHistory(messages.length > 0 ? messages : buildDefaultChatHistory())
+    } catch (e: any) {
+      setConversationError(e.message || "对话消息加载失败")
+    }
+  }
+
+  function startNewConversation() {
+    setActiveConversationId(null)
+    setChatHistory(buildDefaultChatHistory())
+    setConversationError("")
+  }
+
+  async function ensureConversationForMessage(text: string): Promise<string | null> {
+    if (activeConversationId) return activeConversationId
+
+    try {
+      const res = await fetch("/api/assistant/conversations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...buildLocalAdminHeaders(isRememberedAdmin()) },
+        body: JSON.stringify({ title: buildConversationTitle(text) }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || "创建对话失败")
+      setActiveConversationId(data.id)
+      setConversationList((prev) => [data, ...prev.filter((item) => item.id !== data.id)])
+      return data.id
+    } catch (e: any) {
+      const localConversation = createLocalConversation(text)
+      setActiveConversationId(localConversation.id)
+      setConversationList((prev) => [localConversation, ...prev.filter((item) => item.id !== localConversation.id)])
+      setConversationError("历史对话暂存在本机，数据库迁移完成后会自动保存到 Supabase。")
+      return localConversation.id
+    }
+  }
+
+  async function saveConversationMessage(conversationId: string | null, message: ChatMessage, titleText?: string) {
+    if (!conversationId) return
+    if (conversationId.startsWith("local-")) {
+      appendLocalConversationMessage(conversationId, message)
+      setConversationList(readLocalConversationStore().conversations)
+      return
+    }
+
+    try {
+      await fetch(`/api/assistant/conversations/${conversationId}/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...buildLocalAdminHeaders(isRememberedAdmin()) },
+        body: JSON.stringify({
+          role: message.role,
+          content: message.content,
+          attachments: serializeAttachments(message.attachments),
+        }),
+      })
+      setConversationList((prev) => prev.map((item) => item.id === conversationId ? { ...item, updated_at: new Date().toISOString() } : item))
+    } catch {
+      ensureLocalConversationExists(conversationId, titleText || message.content)
+      appendLocalConversationMessage(conversationId, message)
+      setConversationList(readLocalConversationStore().conversations)
+    }
+  }
+
+  async function appendAssistantReply(content: string, conversationId: string | null) {
+    const reply: ChatMessage = { role: "assistant", content }
+    setChatHistory((prev) => [...prev, reply])
+    await saveConversationMessage(conversationId, reply)
+  }
+
   async function handleChatSubmit(nextText?: string) {
     const userMessage = (nextText || chatInput).trim()
     if (!userMessage && attachments.length === 0) return
 
     const messageAttachments = attachments
-    const nextHistory: ChatMessage[] = [...chatHistory, { role: "user", content: userMessage || "我上传了附件", attachments: messageAttachments }]
+    const userChatMessage: ChatMessage = { role: "user", content: userMessage || "我上传了附件", attachments: messageAttachments }
+    const nextHistory: ChatMessage[] = [...chatHistory, userChatMessage]
     setChatHistory(nextHistory)
     setChatInput("")
     setAttachments([])
     setSending(true)
 
     try {
+      const conversationId = await ensureConversationForMessage(userMessage || "附件对话")
+      await saveConversationMessage(conversationId, userChatMessage, userMessage)
       const command = detectAssistantCommand(userMessage)
       const actionReply = command ? await executeAssistantCommand(command, messageAttachments) : ""
       if (actionReply) {
-        setChatHistory((prev) => [...prev, { role: "assistant", content: actionReply }])
+        await appendAssistantReply(actionReply, conversationId)
         return
       }
 
@@ -160,9 +301,9 @@ export default function AISecretaryPage() {
         }),
       })
       const data = await res.json()
-      setChatHistory((prev) => [...prev, { role: "assistant", content: res.ok ? data.answer : data.error || buildReply(userMessage, todayReminders.length, weekReminders.length) }])
+      await appendAssistantReply(res.ok ? data.answer : data.error || buildReply(userMessage, todayReminders.length, weekReminders.length), conversationId)
     } catch (e: any) {
-      setChatHistory((prev) => [...prev, { role: "assistant", content: e.message || buildReply(userMessage, todayReminders.length, weekReminders.length) }])
+      await appendAssistantReply(e.message || buildReply(userMessage, todayReminders.length, weekReminders.length), activeConversationId)
     } finally {
       setSending(false)
     }
@@ -273,9 +414,44 @@ export default function AISecretaryPage() {
         <section className="flex h-[calc(100dvh-12rem)] min-h-[560px] flex-col rounded-xl border border-border bg-card">
           <div className="flex items-center gap-3 border-b border-border p-5">
             <UserProfileButton fallbackName={displayName} />
-            <div>
+            <div className="min-w-0 flex-1">
               <h2 className="text-xl font-semibold">和小美聊聊</h2>
               <p className="text-sm text-muted-foreground">本地助手按重要程度和截止日期整理</p>
+            </div>
+            <button
+              type="button"
+              onClick={startNewConversation}
+              className="inline-flex shrink-0 items-center gap-1 rounded-md border border-border px-3 py-2 text-sm text-muted-foreground hover:text-foreground"
+            >
+              <Plus className="h-4 w-4" />
+              新对话
+            </button>
+          </div>
+
+          <div className="border-b border-border px-5 py-3">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm font-medium text-muted-foreground">历史对话</p>
+              {conversationLoading && <span className="text-xs text-muted-foreground">读取中...</span>}
+            </div>
+            {conversationError && <p className="mt-2 text-xs text-destructive">{conversationError}</p>}
+            <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
+              {conversationList.length === 0 ? (
+                <span className="text-xs text-muted-foreground">当前还没有历史对话</span>
+              ) : (
+                conversationList.map((conversation) => (
+                  <button
+                    key={conversation.id}
+                    type="button"
+                    onClick={() => loadConversationMessages(conversation.id)}
+                    className={cn(
+                      "max-w-44 shrink-0 truncate rounded-md border border-border px-3 py-1.5 text-xs transition-colors",
+                      activeConversationId === conversation.id ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    {conversation.title || "新的对话"}
+                  </button>
+                ))
+              )}
             </div>
           </div>
 
@@ -390,6 +566,103 @@ function AttachmentPreviewList({
       ))}
     </div>
   )
+}
+
+function buildDefaultChatHistory(): ChatMessage[] {
+  return [{ role: "assistant", content: defaultAssistantMessage }]
+}
+
+function buildConversationTitle(text: string): string {
+  const title = text.replace(/\s+/g, " ").trim()
+  if (!title) return "新的对话"
+  return title.length > 28 ? `${title.slice(0, 28)}...` : title
+}
+
+function serializeAttachments(attachments?: ChatAttachment[]) {
+  if (!attachments || attachments.length === 0) return []
+  return attachments.map((item) => ({
+    id: item.id,
+    name: item.name,
+    size: item.size,
+    type: item.type,
+    previewUrl: item.previewUrl,
+  }))
+}
+
+function readLocalConversationStore(): {
+  conversations: AssistantConversation[]
+  messages: Record<string, ChatMessage[]>
+} {
+  if (typeof window === "undefined") return { conversations: [], messages: {} }
+  try {
+    const raw = window.localStorage.getItem(localConversationStoreKey)
+    if (!raw) return { conversations: [], messages: {} }
+    const parsed = JSON.parse(raw)
+    return {
+      conversations: Array.isArray(parsed.conversations) ? parsed.conversations : [],
+      messages: parsed.messages && typeof parsed.messages === "object" ? parsed.messages : {},
+    }
+  } catch {
+    return { conversations: [], messages: {} }
+  }
+}
+
+function writeLocalConversationStore(store: {
+  conversations: AssistantConversation[]
+  messages: Record<string, ChatMessage[]>
+}) {
+  if (typeof window === "undefined") return
+  window.localStorage.setItem(localConversationStoreKey, JSON.stringify(store))
+}
+
+function createLocalConversation(titleText: string): AssistantConversation {
+  const now = new Date().toISOString()
+  const conversation = {
+    id: `local-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    title: buildConversationTitle(titleText),
+    created_at: now,
+    updated_at: now,
+  }
+  const store = readLocalConversationStore()
+  writeLocalConversationStore({
+    conversations: [conversation, ...store.conversations],
+    messages: { ...store.messages, [conversation.id]: [] },
+  })
+  return conversation
+}
+
+function appendLocalConversationMessage(conversationId: string, message: ChatMessage) {
+  const store = readLocalConversationStore()
+  const now = new Date().toISOString()
+  const conversations = store.conversations.map((item) => item.id === conversationId ? { ...item, updated_at: now } : item)
+  writeLocalConversationStore({
+    conversations,
+    messages: {
+      ...store.messages,
+      [conversationId]: [...(store.messages[conversationId] || []), {
+        role: message.role,
+        content: message.content,
+        attachments: serializeAttachments(message.attachments),
+      }],
+    },
+  })
+}
+
+function ensureLocalConversationExists(conversationId: string, titleText: string) {
+  const store = readLocalConversationStore()
+  if (store.conversations.some((item) => item.id === conversationId)) return
+
+  const now = new Date().toISOString()
+  const conversation = {
+    id: conversationId,
+    title: buildConversationTitle(titleText),
+    created_at: now,
+    updated_at: now,
+  }
+  writeLocalConversationStore({
+    conversations: [conversation, ...store.conversations],
+    messages: { ...store.messages, [conversationId]: store.messages[conversationId] || [] },
+  })
 }
 
 function isRememberedAdmin(): boolean {
