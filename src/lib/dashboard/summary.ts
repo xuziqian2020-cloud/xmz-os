@@ -50,11 +50,11 @@ export function buildDashboardSummary(plans: DashboardPlanLike[], now = new Date
   const visiblePlans = plans.filter((plan) => !plan.deleted_at)
 
   const todayPlans = visiblePlans
-    .filter((plan) => isDueOnOrBefore(plan.due_date, todayKey))
+    .filter((plan) => isDueForTodayQueue(plan, todayKey))
     .sort(compareQueuePlans)
 
   const weekPlans = visiblePlans
-    .filter((plan) => isDueForWeek(plan.due_date, weekStartKey, weekEndKey, todayKey))
+    .filter((plan) => isDueForWeekQueue(plan, weekStartKey, weekEndKey, todayKey))
     .sort(compareQueuePlans)
   const activePlans = visiblePlans.filter((plan) => !isFinishedPlan(plan))
   const inProgressPlans = [...activePlans].sort(compareInProgressPlans)
@@ -181,17 +181,19 @@ function addDaysToDate(date: Date, days: number): Date {
   return result
 }
 
-function isDueOnOrBefore(dueDate: string | null | undefined, todayKey: string): boolean {
-  const dueDateKey = getDueDateKey(dueDate)
+function isDueForTodayQueue(plan: DashboardPlanLike, todayKey: string): boolean {
+  const dueDateKey = getDueDateKey(plan.due_date)
   if (!dueDateKey) return false
-  return dueDateKey <= todayKey
+  if (dueDateKey === todayKey) return true
+  return dueDateKey < todayKey && !isFinishedPlan(plan)
 }
 
-function isDueForWeek(dueDate: string | null | undefined, startKey: string, endKey: string, todayKey: string): boolean {
-  const dueDateKey = getDueDateKey(dueDate)
+function isDueForWeekQueue(plan: DashboardPlanLike, startKey: string, endKey: string, todayKey: string): boolean {
+  const dueDateKey = getDueDateKey(plan.due_date)
   if (!dueDateKey) return false
-  if (dueDateKey < todayKey) return true
-  return dueDateKey >= startKey && dueDateKey <= endKey
+  if (dueDateKey < startKey || dueDateKey > endKey) return false
+  if (dueDateKey < todayKey && isFinishedPlan(plan)) return false
+  return true
 }
 
 function isImportantPlan(plan: Pick<DashboardPlanLike, "priority">): boolean {

@@ -51,18 +51,19 @@ describe("dashboard summary", () => {
     assert.equal(summary.weekReminders.length, 2)
   })
 
-  it("keeps overdue plans visible in today and week views even when mixed with completed plans", () => {
+  it("only keeps active overdue plans in the today queue", () => {
     const summary = buildDashboardSummary([
       plan("overdue-active", "overdue active", "2026-07-07", "medium", "进行中", 30),
       plan("overdue-done", "overdue done", "2026-07-07", "high", "已完成", 100),
+      plan("overdue-rejected", "overdue rejected", "2026-07-07", "high", "已拒绝", 0),
       plan("today-active", "today active", "2026-07-08", "low", "进行中", 0),
     ], new Date(2026, 6, 8, 9, 0, 0))
 
-    assert.deepEqual(summary.todayPlans.map((item) => item.id), ["overdue-active", "today-active", "overdue-done"])
-    assert.deepEqual(summary.weekPlans.map((item) => item.id), ["overdue-active", "today-active", "overdue-done"])
-    assert.equal(summary.metrics.today.planCount, 3)
+    assert.deepEqual(summary.todayPlans.map((item) => item.id), ["overdue-active", "today-active"])
+    assert.deepEqual(summary.weekPlans.map((item) => item.id), ["overdue-active", "today-active"])
+    assert.equal(summary.metrics.today.planCount, 2)
     assert.equal(summary.metrics.today.unfinishedCount, 2)
-    assert.equal(summary.metrics.today.averageProgress, 33)
+    assert.equal(summary.metrics.today.averageProgress, 0)
     assert.equal(summary.todayReminders[0]?.reminder_type, "plan_overdue")
   })
 
@@ -79,9 +80,7 @@ describe("dashboard summary", () => {
     assert.deepEqual(summary.weekPlans.map((item) => item.id), [
       "active-early",
       "active-late",
-      "done-early",
       "done-late",
-      "rejected-early",
       "rejected-late",
     ])
   })

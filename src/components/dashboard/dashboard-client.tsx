@@ -83,7 +83,7 @@ export function DashboardClient({
 
   const radarSummary = useMemo(() => {
     if (loading) return "正在读取真实工作计划，稍后会按今天和本周自动拆分。"
-    if (summary.todayReminders.length > 0) return `今天有 ${summary.todayReminders.length} 个待办提醒，建议先处理今日截止和逾期事项。`
+    if (summary.todayReminders.length > 0) return `今天有 ${summary.todayReminders.length} 个待办提醒，建议先处理今日截止和仍在进行中的逾期事项。`
     if (summary.weekReminders.length > 0) return `本周还有 ${summary.weekReminders.length} 个关注项，可以按截止日期推进。`
     return "当前没有今日或本周提醒，可以继续按计划推进。"
   }, [loading, summary.todayReminders.length, summary.weekReminders.length])
@@ -181,7 +181,7 @@ export function DashboardClient({
               <div>
                 <h2 className="text-xl font-semibold">推进队列</h2>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  {viewMode === "today" ? "今天截止和已逾期的全部计划，已完成事项也会显示" : viewMode === "week" ? "本周截止的全部计划，已完成事项也会显示" : "所有仍在进行中的任务，不受截止日期限制"}
+                  {viewMode === "today" ? "今天截止的计划，以及仍在进行中的逾期计划" : viewMode === "week" ? "本周截止的计划，过期已完成事项不再显示" : "所有仍在进行中的任务，不受截止日期限制"}
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -225,7 +225,7 @@ export function DashboardClient({
               {loading ? (
                 <DashboardEmpty text="正在读取真实工作计划..." />
               ) : shownPlans.length === 0 ? (
-                <DashboardEmpty text={viewMode === "today" ? "今天没有截止或逾期计划" : viewMode === "week" ? "本周没有截止计划" : "当前没有进行中的任务"} />
+                <DashboardEmpty text={viewMode === "today" ? "今天没有截止计划，也没有进行中的逾期计划" : viewMode === "week" ? "本周没有截止计划" : "当前没有进行中的任务"} />
               ) : (
                 shownPlans.map((plan) => (
                   <PlanRow key={plan.id} plan={plan} onPlanSaved={(updated) => setPlans((prev) => prev.map((item) => item.id === updated.id ? updated : item))} />
@@ -513,12 +513,12 @@ function getViewHint(viewMode: DashboardViewMode, metric: "plan" | "important" |
 
 function buildReply(input: string, summary: DashboardSummary): string {
   if (input.includes("风险")) {
-    return `本周风险先看 ${summary.unfinishedCount} 个本周未完成事项，优先检查今天截止、逾期和本周重要计划。本周进度是 ${summary.averageProgress}%，低于预期的计划建议今天补动作。`
+    return `本周风险先看 ${summary.unfinishedCount} 个本周未完成事项，优先检查今天截止、仍在进行中的逾期事项和本周重要计划。本周进度是 ${summary.averageProgress}%，低于预期的计划建议今天补动作。`
   }
 
   if (input.includes("顺序") || input.includes("先做") || input.includes("今天")) {
-    if (summary.todayPlans.length === 0) return "今天没有截止或逾期计划，可以从本周重要计划开始推进。"
-    return `今天先处理 ${summary.todayPlans.length} 个事项：${summary.todayPlans.slice(0, 3).map((plan) => plan.title).join("、")}。先处理逾期和重要项，再补普通计划。`
+    if (summary.todayPlans.length === 0) return "今天没有截止计划，也没有进行中的逾期计划，可以从本周重要计划开始推进。"
+    return `今天先处理 ${summary.todayPlans.length} 个事项：${summary.todayPlans.slice(0, 3).map((plan) => plan.title).join("、")}。先处理进行中的逾期项和重要项，再补普通计划。`
   }
 
   return `当前本周有 ${summary.weekPlans.length} 个计划，本周重要 ${summary.importantCount} 个，本周未完成 ${summary.unfinishedCount} 个。建议按重要程度和截止日期推进。`
