@@ -17,6 +17,7 @@ out/
 logs-dev-*.txt
 
 # local runtime artifacts
+.worktrees/
 .tools/
 .qa/
 .local-files/
