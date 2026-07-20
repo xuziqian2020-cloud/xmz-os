@@ -1,12 +1,10 @@
 import { existsSync } from "node:fs"
 import path from "node:path"
-import { createRequire } from "node:module"
 import { NextResponse } from "next/server"
 import mammoth from "mammoth"
 import { buildPdfFileName } from "@/lib/tools/document-conversion"
 
 export const runtime = "nodejs"
-const require = createRequire(import.meta.url)
 
 export async function POST(request: Request) {
   const formData = await request.formData()
@@ -38,19 +36,23 @@ export async function POST(request: Request) {
 }
 
 async function buildPdfBuffer(title: string, text: string): Promise<Buffer> {
-  const PDFDocument = require("pdfkit")
+  const PDFDocument = loadPdfKit()
+  const fontPath = getChineseFontPath()
+  if (!fontPath) {
+    throw new Error("未找到可用的 TTF 中文字体，无法生成 PDF。请确认系统存在 simhei.ttf 或在 public/fonts 放入 NotoSansSC-Regular.otf。")
+  }
 
   return new Promise((resolve, reject) => {
-    const doc = new PDFDocument({ size: "A4", margin: 56, info: { Title: title || "转换文档" } })
+    const doc = new PDFDocument({ autoFirstPage: false, info: { Title: title || "转换文档" } })
     const chunks: Buffer[] = []
-    const fontPath = getChineseFontPath()
 
     doc.on("data", (chunk: Buffer) => chunks.push(chunk))
     doc.on("error", reject)
     doc.on("end", () => resolve(Buffer.concat(chunks)))
 
-    if (fontPath) doc.registerFont("xmz-cn", fontPath)
-    doc.font(fontPath ? "xmz-cn" : "Helvetica")
+    doc.registerFont("xmz-cn", fontPath)
+    doc.addPage({ size: "A4", margin: 56 })
+    doc.font("xmz-cn")
     doc.fontSize(18).text(title || "转换文档", { align: "center" })
     doc.moveDown()
     doc.fontSize(11)
@@ -68,15 +70,22 @@ async function buildPdfBuffer(title: string, text: string): Promise<Buffer> {
   })
 }
 
+function loadPdfKit() {
+  const nodeRequire = eval("require") as (id: string) => any
+  return nodeRequire(path.join(process.cwd(), "node_modules", "pdfkit", "js", "pdfkit.js"))
+}
+
 function getChineseFontPath(): string {
   const candidates = [
+    "C:\\Windows\\Fonts\\simhei.ttf",
+    "C:\\Windows\\Fonts\\simkai.ttf",
+    path.join(process.cwd(), "public", "fonts", "NotoSansSC-Regular.otf"),
     "C:\\Windows\\Fonts\\Noto Sans SC (TrueType).otf",
     "C:\\Windows\\Fonts\\msyh.ttc",
-    "C:\\Windows\\Fonts\\simhei.ttf",
-    path.join(process.cwd(), "public", "fonts", "NotoSansSC-Regular.otf"),
   ]
 
   for (const candidate of candidates) {
+    if (!/\.(ttf|otf)$/i.test(candidate)) continue
     if (existsSync(candidate)) return candidate
   }
   return ""

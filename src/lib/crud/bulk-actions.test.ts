@@ -15,7 +15,6 @@ describe("bulk list actions", () => {
     "src/app/process/page.tsx",
     "src/app/ideas/page.tsx",
     "src/app/knowledge/page.tsx",
-    "src/app/experiences/page.tsx",
     "src/app/prompts/page.tsx",
     "src/app/files/page.tsx",
     "src/app/plans/page.tsx",

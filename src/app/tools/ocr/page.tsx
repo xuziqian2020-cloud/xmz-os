@@ -8,6 +8,12 @@ export default function OcrToolPage() {
       endpoint="/api/tools/ocr"
       accept="image/*"
       outputKey="text"
+      allowOcrLanguage
+      outputModes={[
+        { key: "text", label: "文本" },
+        { key: "markdown", label: "Markdown" },
+        { key: "table", label: "表格" },
+      ]}
     />
   )
 }

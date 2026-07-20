@@ -89,6 +89,7 @@ export function PlanCompletionSelect({ planId, type, status, progress, onSaved }
   async function handleChange(nextStatus: string) {
     const previous = value
     const next = normalizeStatusForType({ type, status: nextStatus, progress })
+    const nextProgress = next.status === "进行中" ? 0 : next.progress
     setValue(next.status)
     setSaving(true)
 
@@ -98,6 +99,7 @@ export function PlanCompletionSelect({ planId, type, status, progress, onSaved }
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           status: next.status,
+          progress: nextProgress,
         }),
       })
       const data = await res.json()

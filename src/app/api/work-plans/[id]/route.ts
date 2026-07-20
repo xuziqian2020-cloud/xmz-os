@@ -26,7 +26,8 @@ export async function PUT(request: Request, { params }: { params: { id: string }
     progress: body.progress ?? current.progress,
   })
   const nextPriority = body.priority === undefined ? current.priority : normalizePriority(body.priority)
-  const nextProgress = body.status === undefined && body.progress !== undefined ? clampProgress(body.progress) : statusRule.progress
+  let nextProgress = body.status === undefined && body.progress !== undefined ? clampProgress(body.progress) : statusRule.progress
+  if (body.status === "进行中") nextProgress = 0
   const updatePayload: Record<string, any> = {
     ...body,
     status: statusRule.status,

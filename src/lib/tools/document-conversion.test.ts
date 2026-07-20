@@ -42,4 +42,18 @@ describe("文档转换工具", () => {
     assert.ok(page.includes("/tools/pdf-to-word"))
     assert.ok(page.includes("/tools/word-to-pdf"))
   })
+
+  it("Word 转 PDF 不再走 pdfkit 的 Helvetica AFM 兜底", () => {
+    const route = source("../../app/api/tools/word-to-pdf/route.ts")
+    const fontCandidatesIndex = route.indexOf("const candidates")
+
+    assert.equal(route.includes('doc.font(fontPath ? "xmz-cn" : "Helvetica")'), false)
+    assert.match(route, /autoFirstPage:\s*false/)
+    assert.match(route, /loadPdfKit/)
+    assert.match(route, /eval\("require"\)/)
+    assert.match(route, /node_modules", "pdfkit", "js", "pdfkit\.js"/)
+    assert.match(route, /simhei\.ttf/)
+    assert.equal(route.includes("Helvetica.afm"), false)
+    assert.ok(route.indexOf("simhei.ttf", fontCandidatesIndex) < route.indexOf("msyh.ttc", fontCandidatesIndex))
+  })
 })

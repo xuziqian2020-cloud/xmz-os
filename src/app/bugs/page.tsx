@@ -114,7 +114,7 @@ export default function BugsPage() {
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div><h1 className="text-lg font-semibold">Bug 库</h1><p className="mt-1 text-sm text-muted-foreground">查看和管理所有 Bug</p></div>
-        <Link href="/plans/new?type=bug" className="inline-flex items-center justify-center gap-1.5 rounded-md bg-foreground px-3 py-2 text-sm font-medium text-background transition-opacity hover:opacity-90">+ 报告 Bug</Link>
+        <Link href="/plans/new?type=bug" className="inline-flex items-center justify-center gap-1.5 rounded-md bg-foreground px-3 py-2 text-sm font-medium text-background transition-opacity hover:opacity-90">+ 新建 Bug</Link>
       </div>
 
       <input

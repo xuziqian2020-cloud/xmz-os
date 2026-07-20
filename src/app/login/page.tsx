@@ -179,7 +179,6 @@ export default function LoginPage() {
               <label className="flex items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-950 px-4 py-3">
                 <span>
                   <span className="block text-sm font-medium text-slate-200">记住密码</span>
-                  <span className="mt-0.5 block text-xs text-slate-500">仅保存在当前浏览器</span>
                 </span>
                 <input
                   type="checkbox"

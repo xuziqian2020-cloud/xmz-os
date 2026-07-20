@@ -15,7 +15,6 @@ export type ProjectModuleKey =
   | "files"
   | "ideas"
   | "reports"
-  | "experiences"
 
 type ProjectModuleViewProps = {
   projectId: string
@@ -81,13 +80,6 @@ const configs: Record<ProjectModuleKey, {
     title: "项目报表",
     desc: "基于当前项目数据一键生成日报、周报、月报和年报。",
     empty: "这个项目还没有可生成报表的数据。",
-  },
-  experiences: {
-    title: "项目经验库",
-    desc: "复盘经验、踩坑记录和可复用结论单独归档。",
-    createHref: (projectId) => `/knowledge/new?category=${encodeURIComponent("经验库")}&project_id=${projectId}`,
-    endpoint: (projectId) => `/api/knowledge?project_id=${projectId}&category=${encodeURIComponent("经验库")}`,
-    empty: "这个项目还没有经验沉淀。",
   },
 }
 
@@ -330,7 +322,7 @@ function DeleteButton({ onClick }: { onClick: () => void }) {
 
 function getDeleteEndpoint(moduleKey: ProjectModuleKey, id: string) {
   if (moduleKey === "plans" || moduleKey === "bugs") return `/api/work-plans/${id}`
-  if (moduleKey === "knowledge" || moduleKey === "experiences") return `/api/knowledge/${id}`
+  if (moduleKey === "knowledge") return `/api/knowledge/${id}`
   if (moduleKey === "prompts") return `/api/prompts/${id}`
   if (moduleKey === "process") return `/api/diagrams/${id}`
   if (moduleKey === "files") return `/api/files/${id}`
@@ -339,14 +331,14 @@ function getDeleteEndpoint(moduleKey: ProjectModuleKey, id: string) {
 }
 
 function getItemHref(moduleKey: ProjectModuleKey, id: string) {
-  if (moduleKey === "knowledge" || moduleKey === "experiences") return `/knowledge/${id}`
+  if (moduleKey === "knowledge") return `/knowledge/${id}`
   if (moduleKey === "process") return `/process/${id}`
   if (moduleKey === "ideas") return `/ideas/${id}/edit`
   return null
 }
 
 function getEditHref(moduleKey: ProjectModuleKey, id: string) {
-  if (moduleKey === "knowledge" || moduleKey === "experiences") return `/knowledge/${id}/edit`
+  if (moduleKey === "knowledge") return `/knowledge/${id}/edit`
   if (moduleKey === "ideas") return `/ideas/${id}/edit`
   return null
 }

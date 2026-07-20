@@ -1,5 +1,6 @@
-import { ProjectModuleView } from "@/components/project/project-module-view"
+import { redirect } from "next/navigation"
 
+/** XMZADD 20260720 将项目经验库旧入口兼容跳转到项目知识库。 */
 export default function ProjectExperiencesPage({ params }: { params: { id: string } }) {
-  return <ProjectModuleView projectId={params.id} moduleKey="experiences" />
+  redirect(`/projects/${params.id}/knowledge`)
 }

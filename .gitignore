@@ -19,6 +19,7 @@ logs-dev-*.txt
 # local runtime artifacts
 .tools/
 .qa/
+.local-files/
 .next-start.*
 tsconfig.tsbuildinfo
 deno.lock

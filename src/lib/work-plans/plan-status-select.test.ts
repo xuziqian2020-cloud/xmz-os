@@ -9,4 +9,9 @@ describe("plan status select", () => {
     assert.match(source, /if \(!onSaved\) router\.refresh\(\)/)
     assert.equal(source.includes("onSaved?.(data)\n        router.refresh()"), false)
   })
+
+  it("sends progress with completion status changes so completed plans can reopen at 0%", () => {
+    assert.match(source, /next\.status\s*===\s*"进行中"\s*\?\s*0\s*:\s*next\.progress/)
+    assert.match(source, /progress:\s*nextProgress/)
+  })
 })

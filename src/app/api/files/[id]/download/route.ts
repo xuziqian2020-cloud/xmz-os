@@ -1,11 +1,14 @@
+import { readFile } from "node:fs/promises"
 import { NextResponse } from "next/server"
 import { buildContentDisposition, resolveStoredFileDownload } from "@/lib/files/download"
+import { getLocalFilesRoot, resolveLocalStoragePath } from "@/lib/files/local-storage"
 import { createClient } from "@/lib/supabase/server"
 
 export const runtime = "nodejs"
 
-export async function GET(_: Request, { params }: { params: { id: string } }) {
+export async function GET(request: Request, { params }: { params: { id: string } }) {
   const supabase = createClient()
+  const preview = new URL(request.url).searchParams.get("preview") === "1"
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: "未登录" }, { status: 401 })
 
@@ -29,7 +32,20 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
     return new NextResponse(bytes, {
       headers: {
         "content-type": remote.headers.get("content-type") || download.contentType,
-        "content-disposition": buildContentDisposition(download.fileName),
+        "content-disposition": buildContentDisposition(download.fileName, preview),
+        "cache-control": "no-store",
+      },
+    })
+  }
+
+  if (download.kind === "local") {
+    const localPath = resolveLocalStoragePath(getLocalFilesRoot(), download.storagePath)
+    if (!localPath) return NextResponse.json({ error: "文件地址无效" }, { status: 404 })
+    const bytes = await readFile(localPath)
+    return new NextResponse(toArrayBuffer(bytes), {
+      headers: {
+        "content-type": download.contentType,
+        "content-disposition": buildContentDisposition(download.fileName, preview),
         "cache-control": "no-store",
       },
     })
@@ -38,7 +54,7 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
   return new NextResponse(toArrayBuffer(download.bytes), {
     headers: {
       "content-type": download.contentType,
-      "content-disposition": buildContentDisposition(download.fileName),
+      "content-disposition": buildContentDisposition(download.fileName, preview),
       "cache-control": "no-store",
     },
   })

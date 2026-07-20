@@ -8,9 +8,8 @@ const root = process.cwd()
 const modules = [
   { name: "项目", list: "src/app/projects/page.tsx", newPage: "src/app/projects/new/page.tsx", edit: "src/app/projects/[id]/edit/page.tsx", api: "src/app/api/projects/[id]/route.ts", newText: "新建项目", editText: "编辑", deleteText: "删除" },
   { name: "工作计划", list: "src/app/plans/page.tsx", newPage: "src/app/plans/new/page.tsx", edit: "src/app/plans/[id]/edit/page.tsx", api: "src/app/api/work-plans/[id]/route.ts", newText: "新建计划", editText: "编辑", deleteText: "删除" },
-  { name: "Bug 库", list: "src/app/bugs/page.tsx", newPage: "src/app/plans/new/page.tsx", edit: "src/app/plans/[id]/edit/page.tsx", api: "src/app/api/work-plans/[id]/route.ts", newText: "报告 Bug", editText: "编辑", deleteText: "删除" },
+  { name: "Bug 库", list: "src/app/bugs/page.tsx", newPage: "src/app/plans/new/page.tsx", edit: "src/app/plans/[id]/edit/page.tsx", api: "src/app/api/work-plans/[id]/route.ts", newText: "新建 Bug", editText: "编辑", deleteText: "删除" },
   { name: "知识库", list: "src/app/knowledge/page.tsx", newPage: "src/app/knowledge/new/page.tsx", edit: "src/app/knowledge/[id]/edit/page.tsx", api: "src/app/api/knowledge/[id]/route.ts", newText: "新建文档", editText: "编辑", deleteText: "删除" },
-  { name: "经验库", list: "src/app/experiences/page.tsx", newPage: "src/app/knowledge/new/page.tsx", edit: "src/app/knowledge/[id]/edit/page.tsx", api: "src/app/api/knowledge/[id]/route.ts", newText: "新增经验", editText: "编辑", deleteText: "删除" },
   { name: "文件", list: "src/app/files/page.tsx", newPage: "src/app/files/page.tsx", edit: "src/app/files/page.tsx", api: "src/app/api/files/[id]/route.ts", newText: "上传文件", editText: "重命名", deleteText: "删除" },
   { name: "灵感箱", list: "src/app/ideas/page.tsx", newPage: "src/app/ideas/new/page.tsx", edit: "src/app/ideas/[id]/edit/page.tsx", api: "src/app/api/ideas/[id]/route.ts", newText: "新增灵感", editText: "编辑", deleteText: "删除" },
 ]
