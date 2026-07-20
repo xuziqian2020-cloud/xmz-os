@@ -27,6 +27,7 @@ export async function POST(request: Request) {
   }
 }
 
+/** XMZADD 20260720 按文件格式提取知识库正文，并让图片统一使用百度 Unlimited-OCR。 */
 async function extractFileText(file: File, buffer: Buffer): Promise<string> {
   const name = file.name || "未命名文件"
   const lowerName = name.toLowerCase()

@@ -1,5 +1,6 @@
 import { AiFileTool } from "@/components/tools/ai-file-tool"
 
+/** XMZADD 20260720 展示支持图片与 PDF 上传的百度 Unlimited-OCR 页面。 */
 export default function OcrToolPage() {
   return (
     <AiFileTool

@@ -87,14 +87,17 @@ function normalizeOcrText(text: string): string {
     .trim()
 }
 
+/** XMZADD 20260720 判断识别结果是否已包含需原样保留的 Markdown 或 HTML 表格结构。 */
 function hasMarkdownSyntax(text: string): boolean {
   return /(^|\n)\s{0,3}#{1,6}\s|(^|\n)\s*\|.*\||<\s*(?:table|tr|td|th)\b|(^|\n)\s*(?:[-*+]\s+|\d+\.\s+|>\s)|`{1,3}|\*\*|__|\[[^\]]+\]\([^)]*\)/i.test(text)
 }
 
+/** XMZADD 20260720 判断单行内容是否为首尾带竖线的 Markdown 表格数据行。 */
 function isMarkdownTableRow(text: string): boolean {
   return text.startsWith("|") && text.endsWith("|")
 }
 
+/** XMZADD 20260720 判断 Markdown 表格的分隔行，避免将其作为业务数据导出。 */
 function isMarkdownTableSeparator(text: string): boolean {
   return isMarkdownTableRow(text) && /^[|\s:-]+$/.test(text)
 }
