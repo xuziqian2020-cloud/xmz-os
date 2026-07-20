@@ -7,12 +7,17 @@ function source(path: string): string {
 }
 
 describe("本地 AI 工具回归", () => {
-  it("OCR 使用本地识别兜底，避免把 image_url 发给纯文本模型", () => {
+  it("OCR 使用 Unlimited-OCR，避免把文件发给纯文本模型", () => {
     const route = source("../../app/api/tools/ocr/route.ts")
-    const recognizer = source("./ocr-recognize.ts")
+    const extractRoute = source("../../app/api/tools/extract-document/route.ts")
+    const page = source("../../app/tools/ocr/page.tsx")
 
-    assert.match(recognizer, /tesseract\.js/)
-    assert.match(route, /recognizeImageText/)
+    assert.match(route, /recognizeUnlimitedOcrFile/)
+    assert.match(extractRoute, /recognizeUnlimitedOcrFile/)
+    assert.match(page, /application\/pdf/)
+    assert.equal(route.includes("recognizeImageText"), false)
+    assert.equal(extractRoute.includes("recognizeImageText"), false)
+    assert.equal(route.includes("error: error.message"), false)
     assert.equal(route.includes("image_url"), false)
   })
 

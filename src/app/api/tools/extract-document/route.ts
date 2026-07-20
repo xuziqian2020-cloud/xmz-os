@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server"
 import { createRequire } from "node:module"
 import mammoth from "mammoth"
-import { getOcrLanguage, isSupportedImageFile } from "@/lib/tools/ocr-image"
-import { recognizeImageText } from "@/lib/tools/ocr-recognize"
+import { isSupportedImageFile } from "@/lib/tools/ocr-image"
+import { extractPlainTextFromMarkdown } from "@/lib/tools/ocr-output"
+import { recognizeUnlimitedOcrFile } from "@/lib/tools/unlimited-ocr"
 import { getKnowledgeFileTitle, isTextLikeFile } from "@/lib/tools/document-conversion"
 
 export const runtime = "nodejs"
@@ -71,7 +72,8 @@ async function extractFileText(file: File, buffer: Buffer): Promise<string> {
 
   if (isSupportedImageFile({ name, type: file.type })) {
     try {
-      const text = await recognizeImageText(buffer, getOcrLanguage(null))
+      const markdown = await recognizeUnlimitedOcrFile({ fileName: name, buffer })
+      const text = extractPlainTextFromMarkdown(markdown)
       return text || buildFallbackContent(file, "图片中没有识别到文字")
     } catch {
       return buildFallbackContent(file, "图片 OCR 失败，系统已先保存资料元信息")

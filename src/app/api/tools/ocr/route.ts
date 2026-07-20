@@ -1,29 +1,36 @@
 import { NextResponse } from "next/server"
-import { getOcrLanguage, isSupportedImageFile } from "@/lib/tools/ocr-image"
+import { validateOcrFile } from "@/lib/tools/ocr-image"
 import { buildOcrResultPayload } from "@/lib/tools/ocr-output"
-import { recognizeImageText } from "@/lib/tools/ocr-recognize"
+import { recognizeUnlimitedOcrFile, UnlimitedOcrError } from "@/lib/tools/unlimited-ocr"
 
 export const runtime = "nodejs"
 
+/** XMZADD 20260720 接收图片或 PDF 并调用百度 Unlimited-OCR 返回页面下载所需的识别结果。 */
 export async function POST(request: Request) {
   const formData = await request.formData()
   const file = formData.get("file") as File | null
-  const language = getOcrLanguage(formData.get("language"))
-  if (!file) return NextResponse.json({ error: "请先选择图片" }, { status: 400 })
+  if (!file) return NextResponse.json({ error: "请先选择图片或 PDF 文件" }, { status: 400 })
 
-  if (!isSupportedImageFile({ name: file.name, type: file.type })) {
-    return NextResponse.json({ error: "请上传图片文件，支持 PNG、JPG、WEBP、GIF、BMP、TIFF、HEIC、AVIF、SVG 等常见格式。" }, { status: 400 })
-  }
+  const validationError = validateOcrFile({ name: file.name, type: file.type, size: file.size })
+  if (validationError) return NextResponse.json({ error: validationError }, { status: 400 })
 
   try {
-    const text = await recognizeImageText(Buffer.from(await file.arrayBuffer()), language)
-    if (!text.trim()) return NextResponse.json({ error: "没有识别到文字，请换一张更清晰的图片" }, { status: 422 })
-    return NextResponse.json(buildOcrResultPayload(file.name, text))
-  } catch (e: any) {
-    const message = String(e.message || "")
-    if (message.includes("read image") || message.includes("pixRead") || message.includes("Input buffer") || message.includes("unsupported image")) {
-      return NextResponse.json({ error: "图片无法读取，请确认文件没有损坏且格式正确" }, { status: 400 })
+    const markdown = await recognizeUnlimitedOcrFile({
+      fileName: file.name,
+      buffer: Buffer.from(await file.arrayBuffer()),
+    })
+    const result = buildOcrResultPayload(file.name, markdown)
+    if (!result.text.trim()) return NextResponse.json({ error: "没有识别到文字，请换一张更清晰的图片" }, { status: 422 })
+    return NextResponse.json(result)
+  } catch (error: unknown) {
+    if (error instanceof UnlimitedOcrError) {
+      const message = error.statusCode === 503
+        ? "尚未配置百度 Unlimited-OCR 凭据"
+        : error.statusCode === 504
+          ? "OCR 识别任务超时，请稍后重试"
+          : "OCR 识别失败，请稍后重试"
+      return NextResponse.json({ error: message }, { status: error.statusCode })
     }
-    return NextResponse.json({ error: message || "OCR 识别失败，请确认图片清晰且格式正确" }, { status: 500 })
+    return NextResponse.json({ error: "OCR 识别失败，请稍后重试" }, { status: 500 })
   }
 }
