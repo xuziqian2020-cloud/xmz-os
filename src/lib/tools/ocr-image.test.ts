@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
-import { getOcrLanguage, isSupportedImageFile, isSupportedOcrFile, validateOcrFile } from "./ocr-image"
+import { isSupportedImageFile, isSupportedOcrFile, validateOcrFile } from "./ocr-image"
 
 describe("OCR 图片输入", () => {
   it("允许常见图片和相机格式作为 OCR 输入", () => {
@@ -18,11 +18,6 @@ describe("OCR 图片输入", () => {
   it("拒绝明显不是图片的文件", () => {
     assert.equal(isSupportedImageFile({ name: "说明.docx", type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" }), false)
     assert.equal(isSupportedImageFile({ name: "notes.txt", type: "text/plain" }), false)
-  })
-
-  it("默认使用中英文混合识别，英文模式可单独指定", () => {
-    assert.equal(getOcrLanguage(null), "chi_sim+eng")
-    assert.equal(getOcrLanguage("eng"), "eng")
   })
 
   it("允许 PDF 用于 Unlimited-OCR，但不接受 Word 文档", () => {

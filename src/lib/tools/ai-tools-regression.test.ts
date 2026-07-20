@@ -21,6 +21,13 @@ describe("本地 AI 工具回归", () => {
     assert.equal(route.includes("image_url"), false)
   })
 
+  it("Unlimited-OCR 上线后移除本地 OCR 依赖", () => {
+    const packageJson = source("../../../package.json")
+
+    assert.equal(packageJson.includes('"tesseract.js"'), false)
+    assert.equal(packageJson.includes('"sharp"'), false)
+  })
+
   it("PDF 转 Markdown 绕过 pdf-parse 测试入口", () => {
     const route = source("../../app/api/tools/pdf-to-markdown/route.ts")
 
