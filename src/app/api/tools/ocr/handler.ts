@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server"
 import { validateOcrFile } from "@/lib/tools/ocr-image"
-import { buildOcrResultPayload } from "@/lib/tools/ocr-output"
-import { LocalOcrError, recognizeLocalOcrFile } from "@/lib/tools/local-paddle-ocr"
+import { getLocalRapidOcrJobManager, type LocalRapidOcrJobManager } from "@/lib/tools/local-rapidocr"
 
-/** XMZADD 20260721 创建 OCR 路由处理器，便于在不改变线上默认本机识别器的前提下验证错误返回。*/
-export function createOcrPostHandler(recognizeFile = recognizeLocalOcrFile) {
+type OcrJobCreator = Pick<LocalRapidOcrJobManager, "createJob">
+
+/** XMZADD 20260721 创建 OCR 提交处理器，使长扫描件立即进入本机后台队列而不占用 HTTP 请求。 */
+export function createOcrPostHandler(jobManager: OcrJobCreator = getLocalRapidOcrJobManager()) {
   return async function POST(request: Request) {
     const formData = await request.formData()
     const file = formData.get("file") as File | null
@@ -14,18 +15,13 @@ export function createOcrPostHandler(recognizeFile = recognizeLocalOcrFile) {
     if (validationError) return NextResponse.json({ error: validationError }, { status: 400 })
 
     try {
-      const text = await recognizeFile({
+      const job = await jobManager.createJob({
         fileName: file.name,
         buffer: Buffer.from(await file.arrayBuffer()),
       })
-      const result = buildOcrResultPayload(file.name, text)
-      if (!result.text.trim()) return NextResponse.json({ error: "没有识别到文字，请换一张更清晰的图片" }, { status: 422 })
-      return NextResponse.json(result)
-    } catch (error: unknown) {
-      if (error instanceof LocalOcrError) {
-        return NextResponse.json({ error: error.message }, { status: error.statusCode })
-      }
-      return NextResponse.json({ error: "本机 OCR 识别失败，请检查本机运行环境" }, { status: 502 })
+      return NextResponse.json({ jobId: job.id, state: job.state }, { status: 202 })
+    } catch {
+      return NextResponse.json({ error: "本机 RapidOCR 任务创建失败，请稍后重试" }, { status: 503 })
     }
   }
 }

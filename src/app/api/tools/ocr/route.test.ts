@@ -1,33 +1,54 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
-import { LocalOcrError } from "@/lib/tools/local-paddle-ocr"
 import { createOcrPostHandler } from "./handler"
 
-/** XMZADD 20260721 构造图片上传请求，确保测试经过真实 OCR 路由处理流程。 */
+/** XMZADD 20260721 构造图片上传请求，验证 OCR 提交接口不会等待本机模型完成识别。 */
 function createImageRequest(): Request {
   const formData = new FormData()
   formData.set("file", new File([Buffer.from("image")], "scan.png", { type: "image/png" }))
   return new Request("http://localhost/api/tools/ocr", { method: "POST", body: formData })
 }
 
-describe("OCR 路由本机错误返回", () => {
-  for (const expected of [
-    { statusCode: 503, message: "本机 OCR 尚未安装，请先执行本机 OCR 安装" },
-    { statusCode: 422, message: "没有识别到文字，请换一份更清晰的扫描件" },
-    { statusCode: 502, message: "本机 OCR 识别失败，请检查本机运行环境" },
-  ]) {
-    it(`原样返回本机 OCR 的 ${expected.statusCode} 错误`, async () => {
-      let recognizeCallCount = 0
-      const post = createOcrPostHandler(async () => {
-        recognizeCallCount += 1
-        throw new LocalOcrError(expected.message, expected.statusCode)
-      })
-
-      const response = await post(createImageRequest())
-
-      assert.equal(response.status, expected.statusCode)
-      assert.deepEqual(await response.json(), { error: expected.message })
-      assert.equal(recognizeCallCount, 1)
+describe("OCR 后台任务提交接口", () => {
+  it("有效上传后立即返回 202 和任务编号", async () => {
+    let receivedFileName = ""
+    const post = createOcrPostHandler({
+      createJob: async (file) => {
+        receivedFileName = file.fileName
+        return {
+          id: "job-1001",
+          fileName: file.fileName,
+          state: "queued",
+          completedPages: 0,
+          totalPages: null,
+          lowConfidencePages: [],
+          createdAt: 1,
+          updatedAt: 1,
+        }
+      },
     })
-  }
+
+    const response = await post(createImageRequest())
+
+    assert.equal(response.status, 202)
+    assert.deepEqual(await response.json(), { jobId: "job-1001", state: "queued" })
+    assert.equal(receivedFileName, "scan.png")
+  })
+
+  it("在创建后台任务前拒绝不支持的上传文件", async () => {
+    let createCallCount = 0
+    const post = createOcrPostHandler({
+      createJob: async () => {
+        createCallCount += 1
+        throw new Error("should not run")
+      },
+    })
+    const formData = new FormData()
+    formData.set("file", new File([Buffer.from("word")], "contract.docx", { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" }))
+
+    const response = await post(new Request("http://localhost/api/tools/ocr", { method: "POST", body: formData }))
+
+    assert.equal(response.status, 400)
+    assert.equal(createCallCount, 0)
+  })
 })

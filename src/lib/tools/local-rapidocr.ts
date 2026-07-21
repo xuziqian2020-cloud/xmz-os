@@ -112,6 +112,8 @@ export interface LocalRapidOcrJobManager {
   getJob(jobId: string): RapidOcrJob | undefined
 }
 
+let defaultJobManager: LocalRapidOcrJobManager | undefined
+
 /** XMZADD 20260721 复用单个 Python 引擎进程，避免每份 PDF 重复加载本机 OCR 模型。 */
 class PersistentRapidOcrWorker implements RapidOcrWorker {
   private process: RapidOcrProcess | undefined
@@ -367,6 +369,20 @@ export function createLocalRapidOcrJobManager(options: LocalRapidOcrJobManagerOp
     options.worker,
     options.now ?? Date.now,
   )
+}
+
+/** XMZADD 20260721 获取进程内唯一的 OCR 队列，确保多个 HTTP 请求共用同一个本机模型进程。 */
+export function getLocalRapidOcrJobManager(): LocalRapidOcrJobManager {
+  if (defaultJobManager) return defaultJobManager
+
+  const projectRoot = process.cwd()
+  defaultJobManager = createLocalRapidOcrJobManager({
+    projectRoot,
+    worker: createPersistentRapidOcrWorker({
+      start: () => createNodeRapidOcrProcess({ projectRoot }),
+    }),
+  })
+  return defaultJobManager
 }
 
 /** XMZADD 20260721 创建可复用的 RapidOCR 工作进程客户端，供本机后台队列统一调用。 */
