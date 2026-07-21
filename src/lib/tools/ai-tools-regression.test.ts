@@ -7,17 +7,26 @@ function source(path: string): string {
 }
 
 describe("本地 AI 工具回归", () => {
-  it("OCR 使用 Unlimited-OCR，避免把文件发给纯文本模型", () => {
+  it("业务 OCR 路由使用本机 PaddleOCR，不访问百度云端", () => {
     const route = source("../../app/api/tools/ocr/route.ts")
     const extractRoute = source("../../app/api/tools/extract-document/route.ts")
     const page = source("../../app/tools/ocr/page.tsx")
 
-    assert.match(route, /recognizeUnlimitedOcrFile/)
-    assert.match(extractRoute, /recognizeUnlimitedOcrFile/)
+    assert.match(route, /recognizeLocalOcrFile/)
+    assert.match(extractRoute, /recognizeLocalOcrFile/)
+    assert.equal(route.includes("recognizeUnlimitedOcrFile"), false)
+    assert.equal(extractRoute.includes("recognizeUnlimitedOcrFile"), false)
+    assert.equal(route.includes("aip.baidubce.com"), false)
+    assert.equal(extractRoute.includes("aip.baidubce.com"), false)
+    assert.match(page, /本机 PaddleOCR/)
+    assert.match(route, /error instanceof LocalOcrError/)
+    assert.match(extractRoute, /const data = await pdfParse\(buffer\)/)
+    assert.match(extractRoute, /const ocrText = await recognizeLocalOcrFile/)
+    assert.match(extractRoute, /error instanceof LocalOcrError/)
     assert.match(page, /application\/pdf/)
     assert.equal(route.includes("recognizeImageText"), false)
     assert.equal(extractRoute.includes("recognizeImageText"), false)
-    assert.equal(route.includes("error: error.message"), false)
+    assert.match(route, /error instanceof LocalOcrError[\s\S]*error: error\.message/)
     assert.equal(route.includes("image_url"), false)
   })
 

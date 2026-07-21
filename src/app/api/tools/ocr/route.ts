@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server"
 import { validateOcrFile } from "@/lib/tools/ocr-image"
 import { buildOcrResultPayload } from "@/lib/tools/ocr-output"
-import { recognizeUnlimitedOcrFile, UnlimitedOcrError } from "@/lib/tools/unlimited-ocr"
+import { LocalOcrError, recognizeLocalOcrFile } from "@/lib/tools/local-paddle-ocr"
 
 export const runtime = "nodejs"
 
-/** XMZADD 20260720 接收图片或 PDF 并调用百度 Unlimited-OCR 返回页面下载所需的识别结果。 */
+/** XMZADD 20260721 接收图片或 PDF 并调用本机 PaddleOCR 返回页面下载所需的识别结果。 */
 export async function POST(request: Request) {
   const formData = await request.formData()
   const file = formData.get("file") as File | null
@@ -15,22 +15,17 @@ export async function POST(request: Request) {
   if (validationError) return NextResponse.json({ error: validationError }, { status: 400 })
 
   try {
-    const markdown = await recognizeUnlimitedOcrFile({
+    const text = await recognizeLocalOcrFile({
       fileName: file.name,
       buffer: Buffer.from(await file.arrayBuffer()),
     })
-    const result = buildOcrResultPayload(file.name, markdown)
+    const result = buildOcrResultPayload(file.name, text)
     if (!result.text.trim()) return NextResponse.json({ error: "没有识别到文字，请换一张更清晰的图片" }, { status: 422 })
     return NextResponse.json(result)
   } catch (error: unknown) {
-    if (error instanceof UnlimitedOcrError) {
-      const message = error.statusCode === 503
-        ? "尚未配置百度 Unlimited-OCR 凭据"
-        : error.statusCode === 504
-          ? "OCR 识别任务超时，请稍后重试"
-          : "OCR 识别失败，请稍后重试"
-      return NextResponse.json({ error: message }, { status: error.statusCode })
+    if (error instanceof LocalOcrError) {
+      return NextResponse.json({ error: error.message }, { status: error.statusCode })
     }
-    return NextResponse.json({ error: "OCR 识别失败，请稍后重试" }, { status: 500 })
+    return NextResponse.json({ error: "本机 OCR 识别失败，请检查本机运行环境" }, { status: 502 })
   }
 }

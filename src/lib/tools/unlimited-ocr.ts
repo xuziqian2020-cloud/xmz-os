@@ -1,3 +1,4 @@
+/** XMZADD 20260721 百度 Unlimited-OCR 已停用，仅为后续恢复保留，业务路由不得导入或调用。 */
 const BAIDU_OAUTH_URL = "https://aip.baidubce.com/oauth/2.0/token"
 const BAIDU_UNLIMITED_OCR_URL = "https://aip.baidubce.com/rest/2.0/brain/online/v2/unlimited-ocr-parser/task"
 const DEFAULT_MAX_POLLS = 12

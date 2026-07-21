@@ -3,12 +3,13 @@ import { createRequire } from "node:module"
 import mammoth from "mammoth"
 import { isSupportedImageFile } from "@/lib/tools/ocr-image"
 import { extractPlainTextFromMarkdown } from "@/lib/tools/ocr-output"
-import { recognizeUnlimitedOcrFile } from "@/lib/tools/unlimited-ocr"
+import { LocalOcrError, recognizeLocalOcrFile } from "@/lib/tools/local-paddle-ocr"
 import { getKnowledgeFileTitle, isTextLikeFile } from "@/lib/tools/document-conversion"
 
 export const runtime = "nodejs"
 const require = createRequire(import.meta.url)
 
+/** XMZADD 20260721 接收知识库文件，并把本机 OCR 的固定错误状态返回给上传方。 */
 export async function POST(request: Request) {
   const formData = await request.formData()
   const file = formData.get("file") as File | null
@@ -22,12 +23,15 @@ export async function POST(request: Request) {
       source: file.name,
       content: extracted,
     })
-  } catch (e: any) {
-    return NextResponse.json({ error: e.message || "文件解析失败" }, { status: 500 })
+  } catch (error: unknown) {
+    if (error instanceof LocalOcrError) {
+      return NextResponse.json({ error: error.message }, { status: error.statusCode })
+    }
+    return NextResponse.json({ error: "文件解析失败" }, { status: 500 })
   }
 }
 
-/** XMZADD 20260720 按文件格式提取知识库正文，并让图片统一使用百度 Unlimited-OCR。 */
+/** XMZADD 20260721 按文件格式提取知识库正文，并在扫描件缺少文本层时调用本机 PaddleOCR。 */
 async function extractFileText(file: File, buffer: Buffer): Promise<string> {
   const name = file.name || "未命名文件"
   const lowerName = name.toLowerCase()
@@ -36,10 +40,16 @@ async function extractFileText(file: File, buffer: Buffer): Promise<string> {
     try {
       const pdfParse = require("pdf-parse/lib/pdf-parse.js")
       const data = await pdfParse(buffer)
-      return String(data.text || "").trim() || buildFallbackContent(file, "PDF 中没有抽取到可复制文本")
+      const text = String(data.text || "").trim()
+      if (text) return text
     } catch {
       return buildFallbackContent(file, "PDF 解析失败，系统已先保存资料元信息")
     }
+
+    // 扫描版 PDF 没有可复制文本层时，才使用本机 OCR 补齐知识库正文。
+    const ocrText = await recognizeLocalOcrFile({ fileName: name, buffer })
+    const text = extractPlainTextFromMarkdown(ocrText)
+    return text || buildFallbackContent(file, "PDF 中没有识别到文字")
   }
 
   if (lowerName.endsWith(".docx")) {
@@ -73,10 +83,11 @@ async function extractFileText(file: File, buffer: Buffer): Promise<string> {
 
   if (isSupportedImageFile({ name, type: file.type })) {
     try {
-      const markdown = await recognizeUnlimitedOcrFile({ fileName: name, buffer })
-      const text = extractPlainTextFromMarkdown(markdown)
+      const ocrText = await recognizeLocalOcrFile({ fileName: name, buffer })
+      const text = extractPlainTextFromMarkdown(ocrText)
       return text || buildFallbackContent(file, "图片中没有识别到文字")
-    } catch {
+    } catch (error: unknown) {
+      if (error instanceof LocalOcrError) throw error
       return buildFallbackContent(file, "图片 OCR 失败，系统已先保存资料元信息")
     }
   }
