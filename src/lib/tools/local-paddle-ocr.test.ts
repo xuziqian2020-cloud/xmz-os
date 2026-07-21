@@ -40,6 +40,31 @@ describe("本机 PaddleOCR 文件识别", () => {
     return projectRoot
   }
 
+  it("gives scanned PDFs a ten-minute recognition window", async () => {
+    const projectRoot = await createProjectRoot()
+
+    try {
+      let receivedTimeoutMs: number | undefined
+
+      await recognizeLocalOcrFile(
+        { fileName: "scan.pdf", buffer: Buffer.from("pdf") },
+        {
+          projectRoot,
+          runProcess: async (_command, argumentsList, options) => {
+            const outputPath = argumentsList[argumentsList.indexOf("--output") + 1]
+            receivedTimeoutMs = options?.timeoutMs
+            await writeFile(outputPath, JSON.stringify({ text: "PDF text" }), "utf8")
+            return { code: 0, stdout: "", stderr: "" }
+          },
+        },
+      )
+
+      assert.equal(receivedTimeoutMs, 600_000)
+    } finally {
+      await rm(projectRoot, { recursive: true, force: true })
+    }
+  })
+
   it("读取 Python 写入的识别 JSON", async () => {
     const projectRoot = await createProjectRoot()
 

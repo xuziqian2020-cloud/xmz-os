@@ -65,7 +65,8 @@ export interface LocalOcrFile {
   buffer: Buffer
 }
 
-const LOCAL_OCR_TIMEOUT_MS = 120_000
+const LOCAL_OCR_IMAGE_TIMEOUT_MS = 120_000
+const LOCAL_OCR_PDF_TIMEOUT_MS = 600_000
 
 /**
  * XMZADD 20260721 为离线识别进程指定仅使用 E 盘本机目录的缓存和临时环境。
@@ -97,6 +98,15 @@ function getSafeExtension(fileName: string): string {
 }
 
 /**
+ * XMZADD 20260721 为扫描 PDF 预留逐页离线识别所需的等待时间，避免多页文件被图片超时限制提前终止。
+ */
+function getLocalOcrTimeoutMs(fileName: string): number {
+  return getSafeExtension(fileName) === ".pdf"
+    ? LOCAL_OCR_PDF_TIMEOUT_MS
+    : LOCAL_OCR_IMAGE_TIMEOUT_MS
+}
+
+/**
  * XMZADD 20260721 启动隐藏的本机 Python OCR 进程并在超时后终止任务。
  */
 async function runLocalOcrProcess(
@@ -117,7 +127,7 @@ async function runLocalOcrProcess(
     })
     const stdoutChunks: Buffer[] = []
     const stderrChunks: Buffer[] = []
-    const timeout = setTimeout(() => child.kill(), options?.timeoutMs ?? LOCAL_OCR_TIMEOUT_MS)
+    const timeout = setTimeout(() => child.kill(), options?.timeoutMs ?? LOCAL_OCR_IMAGE_TIMEOUT_MS)
 
     child.stdout.on("data", (chunk: Buffer) => stdoutChunks.push(chunk))
     child.stderr.on("data", (chunk: Buffer) => stderrChunks.push(chunk))
@@ -178,7 +188,7 @@ export async function recognizeLocalOcrFile(
       {
         cwd: paths.root,
         env: createLocalOcrEnvironment(paths),
-        timeoutMs: LOCAL_OCR_TIMEOUT_MS,
+        timeoutMs: getLocalOcrTimeoutMs(file.fileName),
       },
     )
 
