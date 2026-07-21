@@ -13,6 +13,7 @@ import {
   type RapidOcrWorker,
   type RapidOcrWorkerMessage,
 } from "./local-rapidocr"
+import { getLowConfidenceText, getOcrJobProgressText } from "./ocr-job-status"
 
 /** XMZADD 20260721 构造可控的本机工作进程替身，用于验证队列状态而不依赖真实 OCR 模型。 */
 class FakeRapidOcrWorker implements RapidOcrWorker {
@@ -202,5 +203,14 @@ describe("RapidOCR 本机安装脚本", () => {
     assert.match(script, /\$localHome =/)
     assert.match(script, /^& \$python -m pip install --upgrade rapidocr onnxruntime$/m)
     assert.match(script, /^& \$python -m pip freeze \| Set-Content/m)
+  })
+})
+
+describe("RapidOCR 任务提示文案", () => {
+  it("将后台状态转换为页面可读的进度和复核提示", () => {
+    assert.equal(getOcrJobProgressText({ state: "queued", completedPages: 0, totalPages: null }), "任务排队中")
+    assert.equal(getOcrJobProgressText({ state: "running", completedPages: 12, totalPages: 100 }), "正在识别第 12 / 100 页")
+    assert.equal(getLowConfidenceText([2, 5]), "第 2、5 页置信度较低，建议核对原件")
+    assert.equal(getLowConfidenceText([]), "")
   })
 })
