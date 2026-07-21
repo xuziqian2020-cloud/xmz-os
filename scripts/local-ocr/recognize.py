@@ -76,9 +76,13 @@ def recognize_file(input_path: Path, temp_dir: Path) -> str:
 
     page_texts = []
     for page_path in render_pdf_pages(input_path, temp_dir):
-        page_text = recognize_image(ocr, page_path)
-        if page_text:
-            page_texts.append(page_text)
+        try:
+            page_text = recognize_image(ocr, page_path)
+            if page_text:
+                page_texts.append(page_text)
+        finally:
+            # 扫描页只服务于当前识别，完成后立即释放磁盘并避免敏感影像残留。
+            page_path.unlink(missing_ok=True)
     return "\n\n".join(page_texts)
 
 
