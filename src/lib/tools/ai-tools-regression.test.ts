@@ -7,13 +7,42 @@ function source(path: string): string {
 }
 
 describe("本地 AI 工具回归", () => {
-  it("OCR 使用本地识别兜底，避免把 image_url 发给纯文本模型", () => {
+  it("业务 OCR 路由使用本机 PaddleOCR，不访问百度云端", () => {
     const route = source("../../app/api/tools/ocr/route.ts")
-    const recognizer = source("./ocr-recognize.ts")
+    const extractRoute = source("../../app/api/tools/extract-document/route.ts")
+    const handler = source("../../app/api/tools/ocr/handler.ts")
+    const extractHandler = source("../../app/api/tools/extract-document/handler.ts")
+    const page = source("../../app/tools/ocr/page.tsx")
 
-    assert.match(recognizer, /tesseract\.js/)
-    assert.match(route, /recognizeImageText/)
-    assert.equal(route.includes("image_url"), false)
+    assert.match(route, /createOcrPostHandler/)
+    assert.match(extractRoute, /createExtractDocumentPostHandler/)
+    assert.match(handler, /recognizeLocalOcrFile/)
+    assert.match(extractHandler, /recognizeLocalOcrFile/)
+    assert.equal(route.includes("recognizeUnlimitedOcrFile"), false)
+    assert.equal(extractRoute.includes("recognizeUnlimitedOcrFile"), false)
+    assert.equal(handler.includes("recognizeUnlimitedOcrFile"), false)
+    assert.equal(extractHandler.includes("recognizeUnlimitedOcrFile"), false)
+    assert.equal(route.includes("aip.baidubce.com"), false)
+    assert.equal(extractRoute.includes("aip.baidubce.com"), false)
+    assert.equal(handler.includes("aip.baidubce.com"), false)
+    assert.equal(extractHandler.includes("aip.baidubce.com"), false)
+    assert.match(page, /本机 PaddleOCR/)
+    assert.match(handler, /error instanceof LocalOcrError/)
+    assert.match(extractHandler, /const data = await pdfParse\(buffer\)/)
+    assert.match(extractHandler, /const ocrText = await recognizeLocalOcrFile/)
+    assert.match(extractHandler, /error instanceof LocalOcrError/)
+    assert.match(page, /application\/pdf/)
+    assert.equal(handler.includes("recognizeImageText"), false)
+    assert.equal(extractHandler.includes("recognizeImageText"), false)
+    assert.match(handler, /error instanceof LocalOcrError[\s\S]*error: error\.message/)
+    assert.equal(handler.includes("image_url"), false)
+  })
+
+  it("Unlimited-OCR 上线后移除本地 OCR 依赖", () => {
+    const packageJson = source("../../../package.json")
+
+    assert.equal(packageJson.includes('"tesseract.js"'), false)
+    assert.equal(packageJson.includes('"sharp"'), false)
   })
 
   it("PDF 转 Markdown 绕过 pdf-parse 测试入口", () => {

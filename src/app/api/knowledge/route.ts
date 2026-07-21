@@ -15,7 +15,7 @@ export async function GET(request: Request) {
     .from("knowledge_documents")
     .select("*")
     .is("deleted_at", null)
-    .order("updated_at", { ascending: false })
+    .order("created_at", { ascending: false })
 
   if (projectId) query = query.eq("project_id", projectId)
   if (category) query = query.eq("category", category)

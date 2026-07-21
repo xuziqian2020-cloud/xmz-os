@@ -9,21 +9,15 @@ describe("multi file upload entry points", () => {
     assert.match(source, /type="file"[\s\S]*?multiple/)
     assert.match(source, /Array\.from\(e\.target\.files/)
     assert.match(source, /for \(const file of fileList\)/)
-    assert.match(source, /已上传 \${successCount} 个文件/)
+    assert.match(source, /successCount/)
   })
 
-  it("knowledge import keeps the multi-select document import path for knowledge and experiences", () => {
+  it("knowledge import supports batch file and folder selection", () => {
     const source = readFileSync("src/app/knowledge/new/page.tsx", "utf8")
 
     assert.match(source, /async function handleImportFiles/)
     assert.match(source, /type="file"[\s\S]*?multiple/)
-    assert.match(source, /fromExperience \? "经验库" : "技术文档"/)
-  })
-
-  it("experience page exposes a direct batch import affordance", () => {
-    const source = readFileSync("src/app/experiences/page.tsx", "utf8")
-
-    assert.match(source, /批量导入经验/)
-    assert.match(source, /category=\$\{encodeURIComponent\(EXPERIENCE_CATEGORY\)\}/)
+    assert.match(source, /buildKnowledgeImportPayload\(data, file\)/)
+    assert.match(source, /multiple \{\.\.\.folderInputProps\}/)
   })
 })

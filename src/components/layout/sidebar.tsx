@@ -5,7 +5,7 @@ import { useEffect, useState } from "react"
 import { usePathname, useRouter } from "next/navigation"
 import { useTheme } from "next-themes"
 import { ChevronRight, LogOut, Moon, Sun } from "lucide-react"
-import { ADMIN_REMEMBER_FLAG, REMEMBER_CREDENTIALS_KEY } from "@/lib/auth/local-admin"
+import { ADMIN_REMEMBER_FLAG } from "@/lib/auth/local-admin"
 import { createClient } from "@/lib/supabase/client"
 import { cn } from "@/lib/utils"
 import { mainMenuItems, settingMenuItems, toolMenuItems } from "@/lib/menu-items"
@@ -22,7 +22,6 @@ export function Sidebar() {
 
   async function handleLogout() {
     window.localStorage.removeItem(ADMIN_REMEMBER_FLAG)
-    window.localStorage.removeItem(REMEMBER_CREDENTIALS_KEY)
     setAdminMode(false)
 
     try {

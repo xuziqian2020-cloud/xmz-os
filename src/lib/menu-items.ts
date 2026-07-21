@@ -1,7 +1,6 @@
 import type { ComponentType } from "react"
 import {
   BarChart3,
-  BookMarked,
   BookOpen,
   Bug,
   FileText,
@@ -28,7 +27,6 @@ export const mainMenuItems: MenuItem[] = [
   { label: "工作计划", href: "/plans", icon: ListTodo },
   { label: "Bug 库", href: "/bugs", icon: Bug },
   { label: "知识库", href: "/knowledge", icon: BookOpen },
-  { label: "经验库", href: "/experiences", icon: BookMarked },
   { label: "Prompt 库", href: "/prompts", icon: Terminal },
   { label: "流程图", href: "/process", icon: GitBranch },
   { label: "文件", href: "/files", icon: FileText },

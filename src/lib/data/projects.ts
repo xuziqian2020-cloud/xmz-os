@@ -92,8 +92,7 @@ export async function getProjectStats(projectId: string) {
 
   const [
     { count: planCount },
-    { count: knowledgeTotalCount },
-    { count: experienceCount },
+    { count: knowledgeCount },
     { count: bugCount },
     { count: fileCount },
     { count: ideaCount },
@@ -102,7 +101,6 @@ export async function getProjectStats(projectId: string) {
   ] = await Promise.all([
     supabase.from("work_plans").select("*", { count: "exact", head: true }).eq("project_id", projectId).is("deleted_at", null),
     supabase.from("knowledge_documents").select("*", { count: "exact", head: true }).eq("project_id", projectId).is("deleted_at", null),
-    supabase.from("knowledge_documents").select("*", { count: "exact", head: true }).eq("project_id", projectId).eq("category", "经验库").is("deleted_at", null),
     supabase.from("work_plans").select("*", { count: "exact", head: true }).eq("project_id", projectId).eq("type", "bug").is("deleted_at", null),
     supabase.from("files").select("*", { count: "exact", head: true }).eq("project_id", projectId).is("deleted_at", null),
     supabase.from("ideas").select("*", { count: "exact", head: true }).eq("project_id", projectId).is("deleted_at", null),
@@ -110,17 +108,14 @@ export async function getProjectStats(projectId: string) {
     supabase.from("process_diagrams").select("*", { count: "exact", head: true }).eq("project_id", projectId).is("deleted_at", null),
   ])
 
-  const knowledgeCount = Math.max((knowledgeTotalCount ?? 0) - (experienceCount ?? 0), 0)
-
   return {
     planCount: planCount ?? 0,
-    knowledgeCount,
+    knowledgeCount: knowledgeCount ?? 0,
     bugCount: bugCount ?? 0,
     fileCount: fileCount ?? 0,
     ideaCount: ideaCount ?? 0,
     promptCount: promptCount ?? 0,
     processCount: processCount ?? 0,
-    experienceCount: experienceCount ?? 0,
   }
 }
 

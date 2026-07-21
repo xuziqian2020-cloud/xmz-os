@@ -208,6 +208,42 @@ export default function AISecretaryPage() {
     setConversationError("")
   }
 
+  async function deleteConversation(conversation: AssistantConversation) {
+    if (!window.confirm(`确定删除对话「${conversation.title || "新的对话"}」吗？`)) return
+
+    if (conversation.id.startsWith("local-")) {
+      removeLocalConversation(conversation.id)
+      const localStore = readLocalConversationStore()
+      setConversationList(localStore.conversations)
+      await switchAfterConversationDelete(conversation.id, localStore.conversations)
+      return
+    }
+
+    try {
+      const res = await fetch(`/api/assistant/conversations/${conversation.id}`, {
+        method: "DELETE",
+        headers: buildLocalAdminHeaders(isRememberedAdmin()),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || "删除对话失败")
+      const nextConversations = conversationList.filter((item) => item.id !== conversation.id)
+      setConversationList(nextConversations)
+      await switchAfterConversationDelete(conversation.id, nextConversations)
+    } catch (e: any) {
+      setConversationError(e.message || "删除对话失败")
+    }
+  }
+
+  async function switchAfterConversationDelete(conversationId: string, conversations: AssistantConversation[]) {
+    if (activeConversationId !== conversationId) return
+    if (conversations.length > 0) {
+      await loadConversationMessages(conversations[0].id)
+      return
+    }
+    setActiveConversationId(null)
+    setChatHistory(buildDefaultChatHistory())
+  }
+
   async function ensureConversationForMessage(text: string): Promise<string | null> {
     if (activeConversationId) return activeConversationId
 
@@ -439,17 +475,35 @@ export default function AISecretaryPage() {
                 <span className="text-xs text-muted-foreground">当前还没有历史对话</span>
               ) : (
                 conversationList.map((conversation) => (
-                  <button
+                  <div
                     key={conversation.id}
-                    type="button"
-                    onClick={() => loadConversationMessages(conversation.id)}
                     className={cn(
-                      "max-w-44 shrink-0 truncate rounded-md border border-border px-3 py-1.5 text-xs transition-colors",
+                      "group flex max-w-52 shrink-0 items-center rounded-md border border-border transition-colors",
                       activeConversationId === conversation.id ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground"
                     )}
                   >
-                    {conversation.title || "新的对话"}
-                  </button>
+                    <button
+                      type="button"
+                      onClick={() => loadConversationMessages(conversation.id)}
+                      className="min-w-0 flex-1 truncate px-3 py-1.5 text-left text-xs"
+                    >
+                      {conversation.title || "新的对话"}
+                    </button>
+                    <button
+                      type="button"
+                      aria-label={`删除对话${conversation.title || "新的对话"}`}
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        deleteConversation(conversation)
+                      }}
+                      className={cn(
+                        "mr-1 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded text-current opacity-0 transition-opacity hover:bg-background/10 focus:opacity-100 focus:outline-none focus:ring-1 focus:ring-current group-hover:opacity-100",
+                        activeConversationId === conversation.id ? "hover:bg-background/15" : "hover:bg-secondary"
+                      )}
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
                 ))
               )}
             </div>
@@ -645,6 +699,16 @@ function appendLocalConversationMessage(conversationId: string, message: ChatMes
         attachments: serializeAttachments(message.attachments),
       }],
     },
+  })
+}
+
+function removeLocalConversation(conversationId: string) {
+  const store = readLocalConversationStore()
+  const messages = { ...store.messages }
+  delete messages[conversationId]
+  writeLocalConversationStore({
+    conversations: store.conversations.filter((item) => item.id !== conversationId),
+    messages,
   })
 }
 

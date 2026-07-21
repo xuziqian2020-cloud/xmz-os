@@ -1,6 +1,7 @@
 export type ImageFileLike = {
   name?: string | null
   type?: string | null
+  size?: number | null
 }
 
 const imageExtensions = new Set([
@@ -28,24 +29,22 @@ export function isSupportedImageFile(file: ImageFileLike): boolean {
   return false
 }
 
-export function getOcrLanguage(value: FormDataEntryValue | string | null): string {
-  const language = typeof value === "string" ? value : ""
-  return language === "eng" ? "eng" : "chi_sim+eng"
+/** XMZADD 20260720 判断文件是否可提交给百度 Unlimited-OCR 进行文档识别。 */
+export function isSupportedOcrFile(file: ImageFileLike): boolean {
+  const type = (file.type || "").toLowerCase()
+  if (isSupportedImageFile(file) || type === "application/pdf") return true
+  return getFileExtension(file.name || "") === "pdf" && (!type || type === "application/octet-stream")
 }
 
-export async function normalizeImageForOcr(buffer: Buffer): Promise<Buffer> {
-  const sharp = (await import("sharp")).default
-  const image = sharp(buffer, { animated: false, limitInputPixels: false }).rotate().flatten({ background: "#ffffff" })
-  const metadata = await image.metadata()
-  const width = metadata.width || 0
-  const targetWidth = width > 0 && width < 1600 ? 1600 : width > 2600 ? 2600 : undefined
+/** XMZADD 20260720 在上传前按百度 Unlimited-OCR 的文件大小限制拦截无效请求。 */
+export function validateOcrFile(file: ImageFileLike): string | null {
+  if (!isSupportedOcrFile(file)) return "请上传图片或 PDF 文件"
 
-  let pipeline = image.grayscale().normalize().sharpen()
-  if (targetWidth) {
-    pipeline = pipeline.resize({ width: targetWidth, fit: "inside", withoutEnlargement: false })
-  }
-
-  return pipeline.png().toBuffer()
+  const type = (file.type || "").toLowerCase()
+  const isPdf = type === "application/pdf" || getFileExtension(file.name || "") === "pdf"
+  const maxSize = isPdf ? 50 * 1024 * 1024 : 10 * 1024 * 1024
+  if (Number(file.size || 0) > maxSize) return isPdf ? "PDF 文件不能超过 50MB" : "图片文件不能超过 10MB"
+  return null
 }
 
 function getFileExtension(fileName: string): string {

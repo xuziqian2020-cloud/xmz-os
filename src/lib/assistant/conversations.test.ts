@@ -43,4 +43,14 @@ describe("assistant conversations", () => {
     assert.match(source, /\/api\/assistant\/conversations/)
     assert.match(source, /messagesForAi = nextHistory/)
   })
+
+  it("lets users delete a Xiaomei conversation from history", () => {
+    const source = readFileSync("src/app/ai-secretary/page.tsx", "utf8")
+
+    assert.match(source, /deleteConversation/)
+    assert.match(source, /removeLocalConversation/)
+    assert.match(source, /method: "DELETE"/)
+    assert.match(source, /aria-label={`删除对话/)
+    assert.match(source, /group-hover/)
+  })
 })

@@ -13,7 +13,7 @@ describe("file download", () => {
     assert.equal(result.kind, "inline")
     if (result.kind === "inline") {
       assert.equal(result.fileName, "说明.txt")
-      assert.equal(result.contentType, "text/plain")
+      assert.equal(result.contentType, "text/plain; charset=utf-8")
       assert.equal(Buffer.from(result.bytes).toString("utf8"), "你好")
     }
   })
@@ -31,5 +31,33 @@ describe("file download", () => {
       fileName: "a.pdf",
       contentType: "application/pdf",
     })
+  })
+
+  it("serves markdown previews as plain text so browsers render visible content", () => {
+    const result = resolveStoredFileDownload({
+      file_name: "_scan_entities_A_M.md",
+      file_type: "md",
+      storage_path: "data:text/markdown;base64,IyBIZWFkZXI=",
+    })
+
+    assert.equal(result.kind, "inline")
+    if (result.kind === "inline") {
+      assert.equal(result.contentType, "text/plain; charset=utf-8")
+    }
+  })
+
+  it("resolves local fallback file references with the original preview content type", () => {
+    const result = resolveStoredFileDownload({
+      file_name: "folder/_scan_entities_A_M.md",
+      file_type: "md",
+      storage_path: "local:user-1/file.md",
+    })
+
+    assert.equal(result.kind, "local")
+    if (result.kind === "local") {
+      assert.equal(result.storagePath, "local:user-1/file.md")
+      assert.equal(result.fileName, "folder/_scan_entities_A_M.md")
+      assert.equal(result.contentType, "text/plain; charset=utf-8")
+    }
   })
 })

@@ -54,7 +54,6 @@ export async function GET(request: Request) {
     .from("work_plans")
     .select("*")
     .is("deleted_at", null)
-    .order("priority", { ascending: false })
     .order("created_at", { ascending: false })
 
   if (projectId) query = query.eq("project_id", projectId)

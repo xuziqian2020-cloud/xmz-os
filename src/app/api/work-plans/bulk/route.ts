@@ -20,6 +20,9 @@ export async function PUT(request: Request) {
   if (body.status !== undefined) {
     const statusRule = normalizeStatusForType({ status: body.status })
     updatePayload.status = statusRule.status
+    if (statusRule.status === "进行中") {
+      updatePayload.progress = 0
+    }
     if (statusRule.status === visiblePlanStatuses[1] || statusRule.status === visiblePlanStatuses[2]) {
       updatePayload.progress = statusRule.progress
     }
