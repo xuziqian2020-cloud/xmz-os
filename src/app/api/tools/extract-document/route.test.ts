@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 import { LocalOcrError } from "@/lib/tools/local-paddle-ocr"
-import { createExtractDocumentPostHandler } from "./route"
+import { createExtractDocumentPostHandler } from "./handler"
 
 /** XMZADD 20260721 构造图片资料上传请求，确保测试走资料提取路由的图片 OCR 分支。 */
 function createImageRequest(): Request {
