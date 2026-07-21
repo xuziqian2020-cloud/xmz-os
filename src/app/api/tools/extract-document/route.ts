@@ -8,31 +8,41 @@ import { getKnowledgeFileTitle, isTextLikeFile } from "@/lib/tools/document-conv
 
 export const runtime = "nodejs"
 const require = createRequire(import.meta.url)
+type LocalOcrRecognizer = typeof recognizeLocalOcrFile
 
-/** XMZADD 20260721 接收知识库文件，并把本机 OCR 的固定错误状态返回给上传方。 */
-export async function POST(request: Request) {
-  const formData = await request.formData()
-  const file = formData.get("file") as File | null
-  if (!file) return NextResponse.json({ error: "请先选择文件" }, { status: 400 })
+/** XMZADD 20260721 创建资料提取路由处理器，便于在不改变线上默认本机识别器的前提下验证错误返回。 */
+export function createExtractDocumentPostHandler(recognizeFile = recognizeLocalOcrFile) {
+  return async function POST(request: Request) {
+    const formData = await request.formData()
+    const file = formData.get("file") as File | null
+    if (!file) return NextResponse.json({ error: "请先选择文件" }, { status: 400 })
 
-  try {
-    const buffer = Buffer.from(await file.arrayBuffer())
-    const extracted = await extractFileText(file, buffer)
-    return NextResponse.json({
-      title: getKnowledgeFileTitle(file.name) || file.name || "未命名资料",
-      source: file.name,
-      content: extracted,
-    })
-  } catch (error: unknown) {
-    if (error instanceof LocalOcrError) {
-      return NextResponse.json({ error: error.message }, { status: error.statusCode })
+    try {
+      const buffer = Buffer.from(await file.arrayBuffer())
+      const extracted = await extractFileText(file, buffer, recognizeFile)
+      return NextResponse.json({
+        title: getKnowledgeFileTitle(file.name) || file.name || "未命名资料",
+        source: file.name,
+        content: extracted,
+      })
+    } catch (error: unknown) {
+      if (error instanceof LocalOcrError) {
+        return NextResponse.json({ error: error.message }, { status: error.statusCode })
+      }
+      return NextResponse.json({ error: "文件解析失败" }, { status: 500 })
     }
-    return NextResponse.json({ error: "文件解析失败" }, { status: 500 })
   }
 }
 
+/** XMZADD 20260721 使用默认本机 PaddleOCR 处理资料提取中的扫描件请求。 */
+export const POST = createExtractDocumentPostHandler()
+
 /** XMZADD 20260721 按文件格式提取知识库正文，并在扫描件缺少文本层时调用本机 PaddleOCR。 */
-async function extractFileText(file: File, buffer: Buffer): Promise<string> {
+async function extractFileText(
+  file: File,
+  buffer: Buffer,
+  recognizeLocalOcrFile: LocalOcrRecognizer,
+): Promise<string> {
   const name = file.name || "未命名文件"
   const lowerName = name.toLowerCase()
 

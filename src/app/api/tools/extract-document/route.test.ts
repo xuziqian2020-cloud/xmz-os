@@ -1,35 +1,7 @@
 import assert from "node:assert/strict"
-import { before, describe, it, mock } from "node:test"
-
-/** XMZADD 20260721 模拟本机 OCR 可安全返回给资料提取路由的固定状态错误。 */
-class LocalOcrError extends Error {
-  readonly statusCode: number
-
-  constructor(message: string, statusCode: number) {
-    super(message)
-    this.statusCode = statusCode
-  }
-}
-
-let nextError: LocalOcrError | undefined
-let recognizeCallCount = 0
-
-mock.module("@/lib/tools/local-paddle-ocr", {
-  namedExports: {
-    LocalOcrError,
-    recognizeLocalOcrFile: async () => {
-      recognizeCallCount += 1
-      throw nextError
-    },
-  },
-})
-
-let post: (request: Request) => Promise<Response>
-
-before(async () => {
-  const route = await import("./route")
-  post = route.POST
-})
+import { describe, it } from "node:test"
+import { LocalOcrError } from "@/lib/tools/local-paddle-ocr"
+import { createExtractDocumentPostHandler } from "./route"
 
 /** XMZADD 20260721 构造图片资料上传请求，确保测试走资料提取路由的图片 OCR 分支。 */
 function createImageRequest(): Request {
@@ -45,8 +17,11 @@ describe("资料提取路由本机 OCR 错误返回", () => {
     { statusCode: 502, message: "本机 OCR 识别失败，请检查本机运行环境" },
   ]) {
     it(`原样返回图片本机 OCR 的 ${expected.statusCode} 错误`, async () => {
-      nextError = new LocalOcrError(expected.message, expected.statusCode)
-      recognizeCallCount = 0
+      let recognizeCallCount = 0
+      const post = createExtractDocumentPostHandler(async () => {
+        recognizeCallCount += 1
+        throw new LocalOcrError(expected.message, expected.statusCode)
+      })
 
       const response = await post(createImageRequest())
 
