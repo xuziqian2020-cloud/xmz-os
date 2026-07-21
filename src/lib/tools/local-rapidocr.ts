@@ -1,5 +1,6 @@
 import { existsSync } from "node:fs"
 import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises"
+import { spawn } from "node:child_process"
 import { randomUUID } from "node:crypto"
 import { basename, extname, join } from "node:path"
 
@@ -54,6 +55,39 @@ export interface RapidOcrWorker {
   ): Promise<void>
 }
 
+/** XMZADD 20260721 抽象 Python 进程的标准输入输出，使本机 OCR 协议可在不加载模型的测试中验证。 */
+export interface RapidOcrProcess {
+  write(line: string): void
+  onStdout(listener: (line: string) => void): void
+  onExit(listener: () => void): void
+}
+
+/** XMZADD 20260721 定义启动本机 RapidOCR 常驻进程所需的可替换依赖。 */
+export interface PersistentRapidOcrWorkerOptions {
+  start: () => RapidOcrProcess
+}
+
+/** XMZADD 20260721 描述 Node 启动 Python 工作进程时需要使用的最小子进程能力。 */
+export interface NodeRapidOcrChildProcess {
+  stdin: {
+    write(line: string): unknown
+  }
+  stdout: {
+    on(event: "data", listener: (chunk: Buffer | string) => void): unknown
+  }
+  on(event: "close" | "error", listener: () => void): unknown
+}
+
+/** XMZADD 20260721 定义创建实际 Python 工作进程时可替换的启动依赖，便于验证本机目录约束。 */
+export interface NodeRapidOcrProcessOptions {
+  projectRoot?: string
+  spawnProcess?: (
+    command: string,
+    argumentsList: string[],
+    options: { cwd: string; env: NodeJS.ProcessEnv; windowsHide: boolean },
+  ) => NodeRapidOcrChildProcess
+}
+
 /** XMZADD 20260721 定义创建本机后台任务队列时可替换的目录和工作进程依赖。 */
 export interface LocalRapidOcrJobManagerOptions {
   projectRoot?: string
@@ -76,6 +110,75 @@ export function getLocalRapidOcrRoot(projectRoot = process.cwd()): string {
 export interface LocalRapidOcrJobManager {
   createJob(file: RapidOcrFile): Promise<RapidOcrJob>
   getJob(jobId: string): RapidOcrJob | undefined
+}
+
+/** XMZADD 20260721 复用单个 Python 引擎进程，避免每份 PDF 重复加载本机 OCR 模型。 */
+class PersistentRapidOcrWorker implements RapidOcrWorker {
+  private process: RapidOcrProcess | undefined
+  private active: {
+    jobId: string
+    onMessage: (message: RapidOcrWorkerMessage) => Promise<void>
+    resolve: () => void
+    reject: (error: Error) => void
+  } | undefined
+  private messageChain = Promise.resolve()
+
+  constructor(private readonly start: () => RapidOcrProcess) {}
+
+  /** XMZADD 20260721 将当前任务写入常驻 Python 进程，并等待其终态消息后释放队列。 */
+  recognize(
+    jobId: string,
+    inputPath: string,
+    onMessage: (message: RapidOcrWorkerMessage) => Promise<void>,
+  ): Promise<void> {
+    if (this.active) {
+      return Promise.reject(new Error("RapidOCR worker is already processing a job"))
+    }
+
+    const process = this.getProcess()
+    return new Promise<void>((resolve, reject) => {
+      this.active = { jobId, onMessage, resolve, reject }
+      process.write(`${JSON.stringify({ jobId, inputPath })}\n`)
+    })
+  }
+
+  /** XMZADD 20260721 延迟启动并持续复用 Python 进程，减少首次识别后的后续任务等待。 */
+  private getProcess(): RapidOcrProcess {
+    if (this.process) return this.process
+
+    const process = this.start()
+    process.onStdout((line) => {
+      this.messageChain = this.messageChain
+        .then(() => this.handleStdoutLine(line))
+        .catch(() => undefined)
+    })
+    process.onExit(() => this.handleExit())
+    this.process = process
+    return process
+  }
+
+  /** XMZADD 20260721 顺序处理 Python JSON 行，避免进度和完成消息乱序导致页面状态倒退。 */
+  private async handleStdoutLine(line: string): Promise<void> {
+    const active = this.active
+    if (!active) return
+
+    const message = parseWorkerMessage(line)
+    if (!message || message.jobId !== active.jobId) return
+
+    await active.onMessage(message)
+    if (message.type === "completed" || message.type === "failed") {
+      this.active = undefined
+      active.resolve()
+    }
+  }
+
+  /** XMZADD 20260721 在工作进程中断时立即终止当前等待，避免 OCR 队列永久卡住。 */
+  private handleExit(): void {
+    this.process = undefined
+    const active = this.active
+    this.active = undefined
+    active?.reject(new Error("RapidOCR worker exited"))
+  }
 }
 
 /** XMZADD 20260721 为本机 OCR 维护单并发任务队列，避免多份扫描件争抢 CPU 导致超时。 */
@@ -266,15 +369,132 @@ export function createLocalRapidOcrJobManager(options: LocalRapidOcrJobManagerOp
   )
 }
 
+/** XMZADD 20260721 创建可复用的 RapidOCR 工作进程客户端，供本机后台队列统一调用。 */
+export function createPersistentRapidOcrWorker(options: PersistentRapidOcrWorkerOptions): RapidOcrWorker {
+  return new PersistentRapidOcrWorker(options.start)
+}
+
+/** XMZADD 20260721 启动项目目录内的 Python RapidOCR 进程，并将其标准输出拆分为完整 JSON 行。 */
+export function createNodeRapidOcrProcess(options: NodeRapidOcrProcessOptions = {}): RapidOcrProcess {
+  const projectRoot = options.projectRoot ?? process.cwd()
+  const root = getLocalRapidOcrRoot(projectRoot)
+  const python = join(root, "venv", "Scripts", "python.exe")
+  const script = join(projectRoot, "scripts", "local-ocr", "rapidocr-worker.py")
+  const child = (options.spawnProcess ?? spawnRapidOcrProcess)(python, [script], {
+    cwd: root,
+    env: createRapidOcrEnvironment(root),
+    windowsHide: true,
+  })
+  let stdoutListener: ((line: string) => void) | undefined
+  let exitListener: (() => void) | undefined
+  let stdoutBuffer = ""
+
+  child.stdout.on("data", (chunk) => {
+    stdoutBuffer += Buffer.isBuffer(chunk) ? chunk.toString("utf8") : chunk
+    let newlineIndex = stdoutBuffer.indexOf("\n")
+    while (newlineIndex >= 0) {
+      const line = stdoutBuffer.slice(0, newlineIndex).trim()
+      stdoutBuffer = stdoutBuffer.slice(newlineIndex + 1)
+      if (line) stdoutListener?.(line)
+      newlineIndex = stdoutBuffer.indexOf("\n")
+    }
+  })
+  child.on("close", () => exitListener?.())
+  child.on("error", () => exitListener?.())
+
+  return {
+    write(line) {
+      child.stdin.write(line)
+    },
+    onStdout(listener) {
+      stdoutListener = listener
+    },
+    onExit(listener) {
+      exitListener = listener
+    },
+  }
+}
+
 /** XMZADD 20260721 仅保留受控文件扩展名，避免用户文件名影响本机任务目录结构。 */
 function getSafeExtension(fileName: string): string {
   const extension = extname(basename(fileName)).toLowerCase()
   return /^\.[a-z0-9]{1,10}$/.test(extension) ? extension : ".bin"
 }
 
+/** XMZADD 20260721 将 RapidOCR 依赖、缓存与临时文件限制在项目 E 盘目录，避免污染系统盘。 */
+function createRapidOcrEnvironment(root: string): NodeJS.ProcessEnv {
+  const home = join(root, "home")
+  const temp = join(root, "temp")
+  return {
+    ...process.env,
+    PIP_CACHE_DIR: join(root, "pip-cache"),
+    TEMP: temp,
+    TMP: temp,
+    HOME: home,
+    USERPROFILE: home,
+    PYTHONUSERBASE: join(root, "python-user"),
+    PYTHONPYCACHEPREFIX: join(temp, "pycache"),
+  }
+}
+
+/** XMZADD 20260721 使用隐藏窗口启动 Python，保证本机后台 OCR 不打断用户当前操作。 */
+function spawnRapidOcrProcess(
+  command: string,
+  argumentsList: string[],
+  options: { cwd: string; env: NodeJS.ProcessEnv; windowsHide: boolean },
+): NodeRapidOcrChildProcess {
+  return spawn(command, argumentsList, {
+    cwd: options.cwd,
+    env: options.env,
+    windowsHide: options.windowsHide,
+    stdio: ["pipe", "pipe", "pipe"],
+  })
+}
+
 /** XMZADD 20260721 去重并排序低置信度页码，使页面提示稳定且便于用户逐页复核。 */
 function uniquePageNumbers(pageNumbers: number[]): number[] {
   return Array.from(new Set(pageNumbers.filter((pageNumber) => Number.isInteger(pageNumber) && pageNumber > 0))).sort((left, right) => left - right)
+}
+
+/** XMZADD 20260721 校验 Python 回传的 JSON 行，只接受 OCR 任务协议中允许的消息。 */
+function parseWorkerMessage(line: string): RapidOcrWorkerMessage | undefined {
+  try {
+    const value = JSON.parse(line) as Partial<RapidOcrWorkerMessage>
+    if (!value || typeof value !== "object" || typeof value.type !== "string" || typeof value.jobId !== "string") return undefined
+
+    if (value.type === "progress" && typeof value.completedPages === "number" && typeof value.totalPages === "number" && Array.isArray(value.lowConfidencePages)) {
+      return {
+        type: "progress",
+        jobId: value.jobId,
+        completedPages: value.completedPages,
+        totalPages: value.totalPages,
+        lowConfidencePages: value.lowConfidencePages.filter((pageNumber): pageNumber is number => typeof pageNumber === "number"),
+      }
+    }
+
+    if (value.type === "completed" && typeof value.text === "string" && typeof value.totalPages === "number" && Array.isArray(value.lowConfidencePages)) {
+      return {
+        type: "completed",
+        jobId: value.jobId,
+        text: value.text,
+        totalPages: value.totalPages,
+        lowConfidencePages: value.lowConfidencePages.filter((pageNumber): pageNumber is number => typeof pageNumber === "number"),
+      }
+    }
+
+    if (value.type === "failed" && (value.code === "page_limit" || value.code === "invalid_file" || value.code === "recognition_failed") && typeof value.message === "string") {
+      return {
+        type: "failed",
+        jobId: value.jobId,
+        code: value.code,
+        message: value.message,
+      }
+    }
+  } catch {
+    return undefined
+  }
+
+  return undefined
 }
 
 /** XMZADD 20260721 返回任务状态的深度可变副本，隔离后台队列与接口响应数据。 */

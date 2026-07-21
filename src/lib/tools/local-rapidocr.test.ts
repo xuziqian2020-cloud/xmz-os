@@ -1,10 +1,15 @@
 import assert from "node:assert/strict"
-import { mkdtemp, readdir, rm } from "node:fs/promises"
+import { EventEmitter } from "node:events"
+import { mkdtemp, readFile, readdir, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { describe, it } from "node:test"
 import {
+  createPersistentRapidOcrWorker,
+  createNodeRapidOcrProcess,
   createLocalRapidOcrJobManager,
+  type NodeRapidOcrChildProcess,
+  type RapidOcrProcess,
   type RapidOcrWorker,
   type RapidOcrWorkerMessage,
 } from "./local-rapidocr"
@@ -32,6 +37,47 @@ class FakeRapidOcrWorker implements RapidOcrWorker {
   isRecognizing(jobId: string): boolean {
     return this.listeners.has(jobId)
   }
+}
+
+/** XMZADD 20260721 模拟 Python 标准输入输出通道，验证 Node 端按 JSON 行与常驻引擎通信。 */
+class FakeRapidOcrProcess implements RapidOcrProcess {
+  readonly writes: string[] = []
+  private stdoutListener: ((line: string) => void) | undefined
+  private exitListener: (() => void) | undefined
+
+  /** XMZADD 20260721 记录 Node 提交到 Python 的任务指令，确认任务不会通过网络发送。 */
+  write(line: string): void {
+    this.writes.push(line)
+  }
+
+  /** XMZADD 20260721 注册 Python 标准输出监听，模拟工作进程回传业务进度。 */
+  onStdout(listener: (line: string) => void): void {
+    this.stdoutListener = listener
+  }
+
+  /** XMZADD 20260721 注册工作进程退出监听，验证任务异常可以结束等待状态。 */
+  onExit(listener: () => void): void {
+    this.exitListener = listener
+  }
+
+  /** XMZADD 20260721 推送一行 Python 消息，复现常驻 RapidOCR 的标准输出协议。 */
+  emitStdout(payload: unknown): void {
+    this.stdoutListener?.(JSON.stringify(payload))
+  }
+
+  /** XMZADD 20260721 模拟 Python 进程异常退出。 */
+  emitExit(): void {
+    this.exitListener?.()
+  }
+}
+
+/** XMZADD 20260721 模拟 Node 创建的 Python 子进程，验证其输入输出只走本机进程管道。 */
+class FakeNodeRapidOcrChildProcess extends EventEmitter implements NodeRapidOcrChildProcess {
+  readonly writes: string[] = []
+  readonly stdin = {
+    write: (line: string) => this.writes.push(line),
+  }
+  readonly stdout = new EventEmitter()
 }
 
 /** XMZADD 20260721 等待异步任务状态落库，避免测试以固定延迟猜测本机队列执行时机。 */
@@ -94,5 +140,67 @@ describe("本机 RapidOCR 后台任务", () => {
     } finally {
       await rm(projectRoot, { recursive: true, force: true })
     }
+  })
+})
+
+describe("常驻 RapidOCR 工作进程", () => {
+  it("将 JSON 行进度回传给当前任务并复用同一个进程", async () => {
+    const process = new FakeRapidOcrProcess()
+    let startCount = 0
+    const worker = createPersistentRapidOcrWorker({
+      start: () => {
+        startCount += 1
+        return process
+      },
+    })
+    const messages: RapidOcrWorkerMessage[] = []
+
+    const recognition = worker.recognize("job-1001", "E:\\OCR\\input.pdf", async (message) => {
+      messages.push(message)
+    })
+
+    assert.deepEqual(process.writes, ['{"jobId":"job-1001","inputPath":"E:\\\\OCR\\\\input.pdf"}\n'])
+    process.emitStdout({ type: "progress", jobId: "job-1001", completedPages: 2, totalPages: 3, lowConfidencePages: [2] })
+    process.emitStdout({ type: "completed", jobId: "job-1001", text: "合同编号 A-1001", totalPages: 3, lowConfidencePages: [2] })
+    await recognition
+
+    assert.equal(startCount, 1)
+    assert.deepEqual(messages.map((message) => message.type), ["progress", "completed"])
+  })
+
+  it("从项目 E 盘目录启动 Python 工作进程并保留本地缓存环境", () => {
+    const child = new FakeNodeRapidOcrChildProcess()
+    let command = ""
+    let argumentsList: string[] = []
+    let environment: NodeJS.ProcessEnv | undefined
+
+    const process = createNodeRapidOcrProcess({
+      projectRoot: "E:\\XMZAI\\xmz-os",
+      spawnProcess: (receivedCommand, receivedArguments, options) => {
+        command = receivedCommand
+        argumentsList = receivedArguments
+        environment = options.env
+        return child
+      },
+    })
+
+    process.write('{"jobId":"job-1001"}\n')
+
+    assert.equal(command, "E:\\XMZAI\\xmz-os\\.local-ocr\\venv\\Scripts\\python.exe")
+    assert.deepEqual(argumentsList, ["E:\\XMZAI\\xmz-os\\scripts\\local-ocr\\rapidocr-worker.py"])
+    assert.equal(environment?.PIP_CACHE_DIR, "E:\\XMZAI\\xmz-os\\.local-ocr\\pip-cache")
+    assert.equal(environment?.TEMP, "E:\\XMZAI\\xmz-os\\.local-ocr\\temp")
+    assert.deepEqual(child.writes, ['{"jobId":"job-1001"}\n'])
+  })
+})
+
+describe("RapidOCR 本机安装脚本", () => {
+  it("不覆盖 PowerShell 的只读 HOME 变量", async () => {
+    const script = await readFile(new URL("../../../scripts/setup-local-rapidocr.ps1", import.meta.url), "utf8")
+
+    assert.equal(script.includes("$home ="), false)
+    assert.match(script, /\$localHome =/)
+    assert.match(script, /^& \$python -m pip install --upgrade rapidocr onnxruntime$/m)
+    assert.match(script, /^& \$python -m pip freeze \| Set-Content/m)
   })
 })
