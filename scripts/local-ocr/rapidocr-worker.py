@@ -117,6 +117,7 @@ def recognize_job(job: Mapping[str, Any], engine: RapidOCR) -> None:
 
 def main() -> None:
     """XMZADD 20260721 持续监听 Node 队列，复用一次初始化的本机 RapidOCR 模型处理后续任务。"""
+    sys.stdout.reconfigure(encoding="utf-8", errors="strict")
     logging.disable(logging.CRITICAL)
     engine = RapidOCR()
     emit({"type": "ready"})

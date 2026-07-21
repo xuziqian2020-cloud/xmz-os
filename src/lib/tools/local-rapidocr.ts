@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs"
+import { existsSync, readFileSync, writeFileSync } from "node:fs"
 import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises"
 import { spawn } from "node:child_process"
 import { randomUUID } from "node:crypto"
@@ -226,7 +226,26 @@ class LocalRapidOcrJobManagerImpl implements LocalRapidOcrJobManager {
   /** XMZADD 20260721 读取已登记任务的不可变副本，防止接口调用方修改内存中的队列状态。 */
   getJob(jobId: string): RapidOcrJob | undefined {
     const job = this.jobs.get(jobId)
-    return job ? cloneJob(job) : undefined
+    if (job) return cloneJob(job)
+    if (!isSafeJobId(jobId)) return undefined
+
+    try {
+      const restored = restoreSavedJob(JSON.parse(readFileSync(this.getStatePath(jobId), "utf8")))
+      if (!restored) return undefined
+
+      if (restored.state === "queued" || restored.state === "running") {
+        // 服务重启后无法安全复用旧进程，明确失败可避免同一扫描件被静默重复识别。
+        restored.state = "failed"
+        restored.error = "本机 OCR 服务已重启，请重新上传文件"
+        restored.updatedAt = this.now()
+        writeFileSync(this.getStatePath(jobId), JSON.stringify(restored), "utf8")
+      }
+
+      this.jobs.set(jobId, restored)
+      return cloneJob(restored)
+    } catch {
+      return undefined
+    }
   }
 
   /** XMZADD 20260721 延后启动队列，使提交接口稳定返回排队状态而不是受进程调度影响。 */
@@ -443,6 +462,7 @@ function createRapidOcrEnvironment(root: string): NodeJS.ProcessEnv {
   const temp = join(root, "temp")
   return {
     ...process.env,
+    PYTHONUTF8: "1",
     PIP_CACHE_DIR: join(root, "pip-cache"),
     TEMP: temp,
     TMP: temp,
@@ -470,6 +490,36 @@ function spawnRapidOcrProcess(
 /** XMZADD 20260721 去重并排序低置信度页码，使页面提示稳定且便于用户逐页复核。 */
 function uniquePageNumbers(pageNumbers: number[]): number[] {
   return Array.from(new Set(pageNumbers.filter((pageNumber) => Number.isInteger(pageNumber) && pageNumber > 0))).sort((left, right) => left - right)
+}
+
+/** XMZADD 20260721 校验任务标识格式，防止状态查询将用户输入解释为本机文件路径。 */
+function isSafeJobId(jobId: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(jobId)
+}
+
+/** XMZADD 20260721 恢复已完成任务的持久化状态，使服务重启后用户仍能下载当前识别结果。 */
+function restoreSavedJob(value: unknown): RapidOcrJob | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined
+
+  const candidate = value as Partial<RapidOcrJob>
+  const { id, fileName, state, completedPages, totalPages, lowConfidencePages, createdAt, updatedAt } = candidate
+  if (typeof id !== "string" || !isSafeJobId(id) || typeof fileName !== "string") return undefined
+  if (state !== "queued" && state !== "running" && state !== "completed" && state !== "failed") return undefined
+  if (typeof completedPages !== "number" || (totalPages !== null && typeof totalPages !== "number")) return undefined
+  if (!Array.isArray(lowConfidencePages) || typeof createdAt !== "number" || typeof updatedAt !== "number") return undefined
+
+  return {
+    id,
+    fileName,
+    state,
+    completedPages,
+    totalPages,
+    lowConfidencePages: uniquePageNumbers(lowConfidencePages.filter((pageNumber): pageNumber is number => typeof pageNumber === "number")),
+    ...(typeof candidate.error === "string" ? { error: candidate.error } : {}),
+    ...(typeof candidate.text === "string" ? { text: candidate.text } : {}),
+    createdAt,
+    updatedAt,
+  }
 }
 
 /** XMZADD 20260721 校验 Python 回传的 JSON 行，只接受 OCR 任务协议中允许的消息。 */

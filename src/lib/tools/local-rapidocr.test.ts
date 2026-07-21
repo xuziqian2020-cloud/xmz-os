@@ -142,6 +142,30 @@ describe("本机 RapidOCR 后台任务", () => {
       await rm(projectRoot, { recursive: true, force: true })
     }
   })
+
+  it("服务重启后仍可读取已完成任务的结果", async () => {
+    const projectRoot = await mkdtemp(join(tmpdir(), "local-rapidocr-test-"))
+    const firstWorker = new FakeRapidOcrWorker()
+    const firstManager = createLocalRapidOcrJobManager({ projectRoot, worker: firstWorker })
+
+    try {
+      const job = await firstManager.createJob({ fileName: "scan.png", buffer: Buffer.from("image") })
+      await waitFor(() => firstWorker.isRecognizing(job.id))
+      await firstWorker.emit({
+        type: "completed",
+        jobId: job.id,
+        text: "合同编号 A-1001",
+        totalPages: 1,
+        lowConfidencePages: [],
+      })
+
+      const restartedManager = createLocalRapidOcrJobManager({ projectRoot, worker: new FakeRapidOcrWorker() })
+      assert.equal(restartedManager.getJob(job.id)?.state, "completed")
+      assert.equal(restartedManager.getJob(job.id)?.text, "合同编号 A-1001")
+    } finally {
+      await rm(projectRoot, { recursive: true, force: true })
+    }
+  })
 })
 
 describe("常驻 RapidOCR 工作进程", () => {
@@ -203,6 +227,16 @@ describe("RapidOCR 本机安装脚本", () => {
     assert.match(script, /\$localHome =/)
     assert.match(script, /^& \$python -m pip install --upgrade rapidocr onnxruntime$/m)
     assert.match(script, /^& \$python -m pip freeze \| Set-Content/m)
+  })
+})
+
+describe("RapidOCR 工作进程编码", () => {
+  it("强制 Python JSON 行使用 UTF-8，避免 Windows 管道损坏中文", async () => {
+    const workerSource = await readFile(new URL("../../../scripts/local-ocr/rapidocr-worker.py", import.meta.url), "utf8")
+    const nodeSource = await readFile(new URL("./local-rapidocr.ts", import.meta.url), "utf8")
+
+    assert.match(workerSource, /sys\.stdout\.reconfigure\(encoding="utf-8"/)
+    assert.match(nodeSource, /PYTHONUTF8: "1"/)
   })
 })
 

@@ -7,38 +7,36 @@ function source(path: string): string {
 }
 
 describe("本地 AI 工具回归", () => {
-  it("业务 OCR 路由使用本机 PaddleOCR，不访问百度云端", () => {
+  it("OCR 工具页使用本机 RapidOCR 队列，不访问百度云端", () => {
     const route = source("../../app/api/tools/ocr/route.ts")
-    const extractRoute = source("../../app/api/tools/extract-document/route.ts")
     const handler = source("../../app/api/tools/ocr/handler.ts")
-    const extractHandler = source("../../app/api/tools/extract-document/handler.ts")
+    const statusRoute = source("../../app/api/tools/ocr/[jobId]/route.ts")
+    const statusHandler = source("../../app/api/tools/ocr/[jobId]/handler.ts")
     const page = source("../../app/tools/ocr/page.tsx")
+    const component = source("../../components/tools/ocr-tool.tsx")
+    const inputRules = source("./ocr-image.ts")
+    const extractRoute = source("../../app/api/tools/extract-document/route.ts")
+    const extractHandler = source("../../app/api/tools/extract-document/handler.ts")
 
     assert.match(route, /createOcrPostHandler/)
-    assert.match(extractRoute, /createExtractDocumentPostHandler/)
-    assert.match(handler, /recognizeLocalOcrFile/)
-    assert.match(extractHandler, /recognizeLocalOcrFile/)
-    assert.equal(route.includes("recognizeUnlimitedOcrFile"), false)
-    assert.equal(extractRoute.includes("recognizeUnlimitedOcrFile"), false)
+    assert.match(handler, /getLocalRapidOcrJobManager/)
+    assert.match(statusRoute, /createOcrJobStatusHandler/)
+    assert.match(statusHandler, /buildOcrResultPayload/)
+    assert.match(page, /OcrTool/)
+    assert.match(component, /本机 RapidOCR/)
+    assert.match(inputRules, /export const RAPID_OCR_MAX_PDF_PAGES = 100/)
     assert.equal(handler.includes("recognizeUnlimitedOcrFile"), false)
-    assert.equal(extractHandler.includes("recognizeUnlimitedOcrFile"), false)
-    assert.equal(route.includes("aip.baidubce.com"), false)
-    assert.equal(extractRoute.includes("aip.baidubce.com"), false)
+    assert.equal(statusHandler.includes("recognizeUnlimitedOcrFile"), false)
+    assert.equal(handler.includes("recognizeLocalOcrFile"), false)
     assert.equal(handler.includes("aip.baidubce.com"), false)
-    assert.equal(extractHandler.includes("aip.baidubce.com"), false)
-    assert.match(page, /本机 PaddleOCR/)
-    assert.match(handler, /error instanceof LocalOcrError/)
-    assert.match(extractHandler, /const data = await pdfParse\(buffer\)/)
+    assert.equal(statusHandler.includes("aip.baidubce.com"), false)
+
+    assert.match(extractRoute, /createExtractDocumentPostHandler/)
     assert.match(extractHandler, /const ocrText = await recognizeLocalOcrFile/)
-    assert.match(extractHandler, /error instanceof LocalOcrError/)
-    assert.match(page, /application\/pdf/)
-    assert.equal(handler.includes("recognizeImageText"), false)
-    assert.equal(extractHandler.includes("recognizeImageText"), false)
-    assert.match(handler, /error instanceof LocalOcrError[\s\S]*error: error\.message/)
-    assert.equal(handler.includes("image_url"), false)
+    assert.equal(extractHandler.includes("recognizeUnlimitedOcrFile"), false)
   })
 
-  it("Unlimited-OCR 上线后移除本地 OCR 依赖", () => {
+  it("RapidOCR 改造后仍不恢复已移除的 Tesseract 依赖", () => {
     const packageJson = source("../../../package.json")
 
     assert.equal(packageJson.includes('"tesseract.js"'), false)
@@ -56,7 +54,6 @@ describe("本地 AI 工具回归", () => {
     const route = source("../../app/api/tools/word-to-markdown/route.ts")
 
     assert.match(route, /\.docx/)
-    assert.match(route, /当前仅支持/)
   })
 
   it("音频转文字会校验供应商是否支持转写接口", () => {

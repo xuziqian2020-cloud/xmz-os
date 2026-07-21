@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
+import { RAPID_OCR_MAX_PDF_PAGES } from "@/lib/tools/ocr-image"
 import { getLowConfidenceText, getOcrJobProgressText, type OcrJobProgress } from "@/lib/tools/ocr-job-status"
 
 type OutputMode = "text" | "markdown" | "table"
@@ -144,7 +145,7 @@ export function OcrTool() {
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-semibold tracking-normal">OCR 识别</h1>
-        <p className="mt-2 text-base text-muted-foreground">本机 RapidOCR 离线识别，支持图片和最多 100 页的 PDF，不上传云端。</p>
+        <p className="mt-2 text-base text-muted-foreground">本机 RapidOCR 离线识别，支持图片和最多 {RAPID_OCR_MAX_PDF_PAGES} 页的 PDF，不上传云端。</p>
       </div>
 
       <section className="rounded-xl border border-border bg-card p-6">

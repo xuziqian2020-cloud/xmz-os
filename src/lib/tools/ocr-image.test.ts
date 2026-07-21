@@ -1,8 +1,12 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
-import { isSupportedImageFile, isSupportedOcrFile, validateOcrFile } from "./ocr-image"
+import { RAPID_OCR_MAX_PDF_PAGES, isSupportedImageFile, isSupportedOcrFile, validateOcrFile } from "./ocr-image"
 
 describe("OCR 图片输入", () => {
+  it("将本机 RapidOCR 的 PDF 页数上限固定为一百页", () => {
+    assert.equal(RAPID_OCR_MAX_PDF_PAGES, 100)
+  })
+
   it("允许常见图片和相机格式作为 OCR 输入", () => {
     for (const file of [
       { name: "截图.png", type: "image/png" },
