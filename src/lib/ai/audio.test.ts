@@ -3,6 +3,14 @@ import { describe, it } from "node:test"
 import { buildTranscriptionForm, extractTranscriptionResult, supportsAudioTranscription } from "./audio"
 
 describe("audio transcription", () => {
+  it("defaults the local transcription model to sensevoice", () => {
+    const form = buildTranscriptionForm(new Blob(["hello"], { type: "audio/webm" }), {
+      fileName: "meeting.webm",
+    })
+
+    assert.equal(form.get("model"), "sensevoice")
+  })
+
   it("builds an OpenAI-compatible audio transcription form", async () => {
     const form = buildTranscriptionForm(new Blob(["hello"], { type: "audio/webm" }), {
       fileName: "meeting.webm",

@@ -9,8 +9,8 @@ export default function TranscriptionPage() {
       accept="audio/*,video/*,.mp3,.mp4,.m4a,.wav,.webm"
       outputKey="text"
       promptPlaceholder="可选：输入识别提示，例如专有名词、会议主题或语言。"
-      modelPlaceholder="转写模型，例如 whisper-1、gpt-4o-transcribe 或 gpt-4o-mini-transcribe"
-      defaultModel="whisper-1"
+      modelPlaceholder="转写模型，例如 sensevoice"
+      defaultModel="sensevoice"
       allowDiarize
     />
   )

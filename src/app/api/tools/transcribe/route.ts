@@ -4,6 +4,19 @@ import { parseProviderJson, resolveServerProvider } from "@/lib/ai/server-provid
 
 export const runtime = "nodejs"
 
+/** XMZADD 20260722 提取供应商转写错误详情，避免将密钥类敏感内容返回给浏览器 */
+function getSafeTranscriptionErrorMessage(data: unknown, status: number): string {
+  const response = data && typeof data === "object"
+    ? data as { detail?: unknown; error?: { message?: unknown } }
+    : null
+  const detail = typeof response?.detail === "string" ? response.detail.trim() : ""
+  const errorMessage = typeof response?.error?.message === "string" ? response.error.message.trim() : ""
+  const message = detail || errorMessage
+
+  if (message && !/(api[\s_-]?key|authorization|bearer|token)/i.test(message)) return message
+  return `转写失败：HTTP ${status}`
+}
+
 /** XMZADD 20260722 使用本地 FunASR 转写会议录音并返回发言人识别状态 */
 export async function POST(request: Request) {
   const formData = await request.formData()
@@ -18,7 +31,7 @@ export async function POST(request: Request) {
   const diarize = String(formData.get("diarize") || "") === "true"
   if (!supportsAudioTranscription(provider, model)) {
     return NextResponse.json({
-      error: "当前启用供应商不支持音频转写，请在 AI 设置启用 OpenAI 或兼容 /audio/transcriptions 的供应商，并填写 whisper-1、gpt-4o-transcribe 等转写模型",
+      error: "当前启用供应商不支持音频转写，请在 AI 设置启用本地 FunASR，并填写 sensevoice 模型",
     }, { status: 400 })
   }
 
@@ -31,7 +44,7 @@ export async function POST(request: Request) {
       body: outgoing,
     })
     const data = await res.json().catch(() => ({}))
-    if (!res.ok) return NextResponse.json({ error: data?.error?.message || `转写失败：HTTP ${res.status}` }, { status: 502 })
+    if (!res.ok) return NextResponse.json({ error: getSafeTranscriptionErrorMessage(data, res.status) }, { status: 502 })
 
     const result = extractTranscriptionResult(data)
     if (!result.text) return NextResponse.json({ error: "没有识别到文字" }, { status: 502 })

@@ -16,7 +16,7 @@ export type TranscriptionResult = {
 export function buildTranscriptionForm(file: Blob, options: TranscriptionOptions): FormData {
   const form = new FormData()
   form.append("file", new File([file], options.fileName, { type: file.type || "application/octet-stream" }))
-  form.append("model", options.model || "whisper-1")
+  form.append("model", options.model || "sensevoice")
   form.append("response_format", "verbose_json")
   if (options.prompt?.trim()) form.append("prompt", options.prompt.trim())
   if (options.diarize) {

@@ -35,4 +35,58 @@ describe("会议音频转写接口", () => {
       globalThis.fetch = originalFetch
     }
   })
+
+  it("保留 FunASR 返回的安全错误详情", async () => {
+    const originalFetch = globalThis.fetch
+    globalThis.fetch = async () => new Response(JSON.stringify({
+      detail: "FunASR 转写失败：未找到 ffmpeg",
+    }), { status: 500 })
+
+    try {
+      const form = new FormData()
+      form.set("file", new File(["audio"], "meeting.webm", { type: "audio/webm" }))
+      form.set("provider", JSON.stringify({
+        base_url: "http://127.0.0.1:8001/v1",
+        api_key: "local",
+        default_model: "sensevoice",
+        is_enabled: true,
+      }))
+      form.set("model", "sensevoice")
+
+      const response = await POST(new Request("http://localhost/api/tools/transcribe", { method: "POST", body: form }))
+      const body = await response.json()
+
+      assert.equal(response.status, 502)
+      assert.match(body.error, /FunASR 转写失败：未找到 ffmpeg/)
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
+
+  it("兼容供应商返回的 error.message", async () => {
+    const originalFetch = globalThis.fetch
+    globalThis.fetch = async () => new Response(JSON.stringify({
+      error: { message: "供应商暂时不可用" },
+    }), { status: 503 })
+
+    try {
+      const form = new FormData()
+      form.set("file", new File(["audio"], "meeting.webm", { type: "audio/webm" }))
+      form.set("provider", JSON.stringify({
+        base_url: "http://127.0.0.1:8001/v1",
+        api_key: "local",
+        default_model: "sensevoice",
+        is_enabled: true,
+      }))
+      form.set("model", "sensevoice")
+
+      const response = await POST(new Request("http://localhost/api/tools/transcribe", { method: "POST", body: form }))
+      const body = await response.json()
+
+      assert.equal(response.status, 502)
+      assert.equal(body.error, "供应商暂时不可用")
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
 })
