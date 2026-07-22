@@ -70,10 +70,10 @@ POST an actual WebM sample to `/v1/audio/transcriptions` with `model=sensevoice`
 
 Document that browser meetings require the local `imageio-ffmpeg` decoder in `E:\Ollama\funasr-venv`, and that the startup script locates it automatically and adds it only for FunASR.
 
-- [ ] **Step 2: Run complete verification**
+- [x] **Step 2: Run complete verification**
 
 Run the full Node test suite and `next build` using the bundled Node runtime, then check FunASR health, local Ollama models, and a WebM transcription response.
 
-- [ ] **Step 3: Commit on `main`**
+- [x] **Step 3: Commit on `main`**
 
 Run `git diff --check`, stage only the plan, application changes, tests, and setup document, and commit with `fix: support local WebM transcription`.
