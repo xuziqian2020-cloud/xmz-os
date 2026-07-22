@@ -1,8 +1,14 @@
 import { selectChatProvider, type AIProviderConfig } from "@/lib/ai/chat"
+import { selectAudioProvider, type ProviderPurpose } from "@/lib/ai/provider-selection"
 import { createClient } from "@/lib/supabase/server"
 
-export async function resolveServerProvider(localProvider?: AIProviderConfig | null): Promise<AIProviderConfig | null> {
-  const selectedLocal = localProvider ? selectChatProvider([localProvider]) : null
+/** XMZADD 20260722 按音频或文本用途从本地和持久化配置中选择服务 */
+export async function resolveServerProvider(
+  localProvider?: AIProviderConfig | null,
+  purpose: ProviderPurpose = "chat"
+): Promise<AIProviderConfig | null> {
+  const selectProvider = purpose === "audio" ? selectAudioProvider : selectChatProvider
+  const selectedLocal = localProvider ? selectProvider([localProvider]) : null
   if (selectedLocal) return selectedLocal
 
   const supabase = createClient()
@@ -14,7 +20,7 @@ export async function resolveServerProvider(localProvider?: AIProviderConfig | n
     .order("created_at", { ascending: true })
     .limit(5)
 
-  return selectChatProvider((data || []) as AIProviderConfig[])
+  return selectProvider((data || []) as AIProviderConfig[])
 }
 
 export function parseProviderJson(value: FormDataEntryValue | null): AIProviderConfig | null {

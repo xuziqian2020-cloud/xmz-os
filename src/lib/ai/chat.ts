@@ -1,3 +1,5 @@
+import { selectTextProvider } from "./provider-selection"
+
 export type AIChatMessage = {
   role: "user" | "assistant" | "system"
   content: string
@@ -20,16 +22,9 @@ export type ChatRequestSpec = {
   responseType: "openai" | "anthropic"
 }
 
+/** XMZADD 20260722 为聊天和纪要生成排除仅用于音频转写的 FunASR */
 export function selectChatProvider(providers: AIProviderConfig[]): AIProviderConfig | null {
-  for (const provider of providers) {
-    if (provider.is_enabled === false) continue
-    if (!provider.base_url?.trim()) continue
-    if (!provider.api_key?.trim()) continue
-    if (!provider.default_model?.trim()) continue
-    return provider
-  }
-
-  return null
+  return selectTextProvider(providers)
 }
 
 export function buildChatRequest(provider: AIProviderConfig, messages: AIChatMessage[], context: string): ChatRequestSpec {
