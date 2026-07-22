@@ -60,7 +60,7 @@ describe("本地 AI 工具回归", () => {
     const route = source("../../app/api/tools/transcribe/route.ts")
 
     assert.match(route, /supportsAudioTranscription/)
-    assert.match(route, /whisper-1/)
+    assert.match(route, /sensevoice/)
   })
 
   it("会议纪要页面提供浏览器实时语音识别兜底", () => {
