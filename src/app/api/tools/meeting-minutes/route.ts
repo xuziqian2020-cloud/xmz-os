@@ -5,6 +5,7 @@ import { buildMeetingMinutesHtml, buildMeetingMinutesPrompt } from "@/lib/tools/
 
 export const runtime = "nodejs"
 
+/** XMZADD 20260722 使用文本模型将会议转写整理为可下载的会议纪要 */
 export async function POST(request: Request) {
   const body = await request.json()
   const title = String(body.title || "会议纪要")
@@ -12,7 +13,7 @@ export async function POST(request: Request) {
   const transcript = String(body.transcript || "").trim()
   if (!transcript) return NextResponse.json({ error: "请先完成会议转写" }, { status: 400 })
 
-  const provider = await resolveServerProvider(body.provider || null)
+  const provider = await resolveServerProvider(body.provider || null, "chat")
   if (!provider) return NextResponse.json({ error: "请先在 AI 设置启用一个供应商" }, { status: 400 })
 
   const prompt = buildMeetingMinutesPrompt({ title, attendees, transcript })

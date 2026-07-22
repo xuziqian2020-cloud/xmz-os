@@ -1,7 +1,7 @@
 "use client"
 
 import { useRef, useState } from "react"
-import { selectBrowserAiProvider } from "@/lib/ai/local-providers"
+import { selectBrowserAiProvider, selectBrowserAudioProvider } from "@/lib/ai/local-providers"
 
 export default function MeetingMinutesPage() {
   const [title, setTitle] = useState("会议纪要")
@@ -80,14 +80,16 @@ export default function MeetingMinutesPage() {
     setRecording(false)
   }
 
+  /** XMZADD 20260722 使用音频供应商完成录音转写并提示未返回的发言人标识 */
   async function transcribeMeeting() {
     if (!audioBlob) return
     setLoading("正在转写会议录音...")
     setError("")
+    const audioProvider = selectBrowserAudioProvider()
     const formData = new FormData()
     formData.append("file", new File([audioBlob], "meeting.webm", { type: audioBlob.type || "audio/webm" }))
-    formData.append("provider", JSON.stringify(selectBrowserAiProvider()))
-    formData.append("model", "whisper-1")
+    formData.append("provider", JSON.stringify(audioProvider))
+    formData.append("model", audioProvider?.default_model || "sensevoice")
     formData.append("prompt", `${title}；参会人员：${attendees}`)
     formData.append("diarize", "true")
 
@@ -99,6 +101,7 @@ export default function MeetingMinutesPage() {
         return
       }
       setTranscript(data.text || "")
+      setSpeechHint(data.hasSpeakerLabels ? "" : "转写完成，但当前服务未返回发言人区分。")
     } catch (e: any) {
       setError(e.message || "会议转写失败")
     } finally {

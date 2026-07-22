@@ -1,18 +1,19 @@
 import { NextResponse } from "next/server"
-import { buildTranscriptionForm, buildTranscriptionUrl, extractTranscriptionText, supportsAudioTranscription } from "@/lib/ai/audio"
+import { buildTranscriptionForm, buildTranscriptionUrl, extractTranscriptionResult, supportsAudioTranscription } from "@/lib/ai/audio"
 import { parseProviderJson, resolveServerProvider } from "@/lib/ai/server-provider"
 
 export const runtime = "nodejs"
 
+/** XMZADD 20260722 使用本地 FunASR 转写会议录音并返回发言人识别状态 */
 export async function POST(request: Request) {
   const formData = await request.formData()
   const file = formData.get("file") as File | null
   if (!file) return NextResponse.json({ error: "请先选择音频或视频文件" }, { status: 400 })
 
-  const provider = await resolveServerProvider(parseProviderJson(formData.get("provider")))
+  const provider = await resolveServerProvider(parseProviderJson(formData.get("provider")), "audio")
   if (!provider) return NextResponse.json({ error: "请先在 AI 设置启用一个支持音频转写的供应商" }, { status: 400 })
 
-  const model = String(formData.get("model") || provider.default_model || "whisper-1")
+  const model = String(formData.get("model") || provider.default_model || "sensevoice")
   const prompt = String(formData.get("prompt") || "")
   const diarize = String(formData.get("diarize") || "") === "true"
   if (!supportsAudioTranscription(provider, model)) {
@@ -32,9 +33,9 @@ export async function POST(request: Request) {
     const data = await res.json().catch(() => ({}))
     if (!res.ok) return NextResponse.json({ error: data?.error?.message || `转写失败：HTTP ${res.status}` }, { status: 502 })
 
-    const text = extractTranscriptionText(data)
-    if (!text) return NextResponse.json({ error: "没有识别到文字" }, { status: 502 })
-    return NextResponse.json({ text, raw: data })
+    const result = extractTranscriptionResult(data)
+    if (!result.text) return NextResponse.json({ error: "没有识别到文字" }, { status: 502 })
+    return NextResponse.json({ text: result.text, hasSpeakerLabels: result.hasSpeakerLabels, raw: data })
   } catch {
     return NextResponse.json({ error: "转写请求失败，请检查供应商是否支持音频转写" }, { status: 502 })
   }
