@@ -4,7 +4,7 @@ import { parseProviderJson, resolveServerProvider } from "@/lib/ai/server-provid
 
 export const runtime = "nodejs"
 
-/** XMZADD 20260722 提取供应商转写错误详情，避免将密钥类敏感内容返回给浏览器 */
+/** XMZADD 20260722 仅返回白名单内的本地转写错误，避免上游诊断信息泄露给浏览器 */
 function getSafeTranscriptionErrorMessage(data: unknown, status: number): string {
   const response = data && typeof data === "object"
     ? data as { detail?: unknown; error?: { message?: unknown } }
@@ -12,8 +12,11 @@ function getSafeTranscriptionErrorMessage(data: unknown, status: number): string
   const detail = typeof response?.detail === "string" ? response.detail.trim() : ""
   const errorMessage = typeof response?.error?.message === "string" ? response.error.message.trim() : ""
   const message = detail || errorMessage
+  const containsSensitiveContent = /(api[\s_-]?key|authorization|bearer|token|password|postgres(?:ql)?:\/\/|stack|traceback|exception|\bat\s+[\w./:-]+:\d+)/i.test(message)
+  const isKnownFunasrLocalError = /^FunASR 转写失败：(未找到 ffmpeg|音频文件为空|不支持的音频格式|音频文件损坏)$/.test(message)
+  const isGenericAvailabilityError = /^(供应商暂时不可用|转写服务暂时不可用)$/.test(message)
 
-  if (message && !/(api[\s_-]?key|authorization|bearer|token)/i.test(message)) return message
+  if (message.length <= 160 && !containsSensitiveContent && (isKnownFunasrLocalError || isGenericAvailabilityError)) return message
   return `转写失败：HTTP ${status}`
 }
 

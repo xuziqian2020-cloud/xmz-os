@@ -89,4 +89,31 @@ describe("会议音频转写接口", () => {
       globalThis.fetch = originalFetch
     }
   })
+
+  it("回退包含密码或堆栈的上游详情", async () => {
+    const originalFetch = globalThis.fetch
+    globalThis.fetch = async () => new Response(JSON.stringify({
+      detail: "FunASR 转写失败：password=TopSecret; postgres://app:dbpass@db.example/prod\n at server.py:10",
+    }), { status: 500 })
+
+    try {
+      const form = new FormData()
+      form.set("file", new File(["audio"], "meeting.webm", { type: "audio/webm" }))
+      form.set("provider", JSON.stringify({
+        base_url: "http://127.0.0.1:8001/v1",
+        api_key: "local",
+        default_model: "sensevoice",
+        is_enabled: true,
+      }))
+      form.set("model", "sensevoice")
+
+      const response = await POST(new Request("http://localhost/api/tools/transcribe", { method: "POST", body: form }))
+      const body = await response.json()
+
+      assert.equal(response.status, 502)
+      assert.equal(body.error, "转写失败：HTTP 500")
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
 })
