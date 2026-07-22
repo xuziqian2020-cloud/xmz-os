@@ -5,12 +5,15 @@
 ## 目录与模型缓存
 
 - Python 虚拟环境：`E:\Ollama\funasr-venv`
+- 浏览器录音 WebM 解码组件：`E:\Ollama\funasr-venv` 内的 `imageio-ffmpeg`
 - FunASR 服务：`E:\Ollama\funasr-server`
 - FunASR/ModelScope 模型缓存：`E:\Ollama\modelscope-cache`
 - Hugging Face 模型缓存：`E:\Ollama\huggingface-cache`
 - Ollama 模型：`E:\Ollama\models`
 
 所有大文件模型与缓存均在 E 盘。FunASR 首次启动会下载 `SenseVoiceSmall` 模型，下载完成后可离线转写。
+
+浏览器会议录音通常为 `audio/webm`，需要免费的本地 `imageio-ffmpeg` 解码组件后才能交给 FunASR 识别。`start-funasr.ps1` 会自动定位该组件随版本安装的 FFmpeg 二进制文件，刷新 FunASR 所需的 `ffmpeg.exe` 兼容入口，并且只为当前 FunASR 进程临时加入 PATH，不会修改 Windows 系统 PATH；无需在页面或配置中手动填写 FFmpeg 路径。
 
 ## 启动与检查
 
