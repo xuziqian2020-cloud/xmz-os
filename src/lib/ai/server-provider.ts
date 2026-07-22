@@ -1,5 +1,5 @@
 import { selectChatProvider, type AIProviderConfig } from "@/lib/ai/chat"
-import { selectAudioProvider, type ProviderPurpose } from "@/lib/ai/provider-selection"
+import { selectAudioProvider, selectMeetingMinutesProvider, type ProviderPurpose } from "@/lib/ai/provider-selection"
 import { createClient } from "@/lib/supabase/server"
 
 /** XMZADD 20260722 按音频或文本用途从本地和持久化配置中选择服务 */
@@ -7,7 +7,11 @@ export async function resolveServerProvider(
   localProvider?: AIProviderConfig | null,
   purpose: ProviderPurpose = "chat"
 ): Promise<AIProviderConfig | null> {
-  const selectProvider = purpose === "audio" ? selectAudioProvider : selectChatProvider
+  const selectProvider = purpose === "audio"
+    ? selectAudioProvider
+    : purpose === "meeting_minutes"
+      ? selectMeetingMinutesProvider
+      : selectChatProvider
   const selectedLocal = localProvider ? selectProvider([localProvider]) : null
   if (selectedLocal) return selectedLocal
 
@@ -18,7 +22,6 @@ export async function resolveServerProvider(
     .eq("is_enabled", true)
     .is("deleted_at", null)
     .order("created_at", { ascending: true })
-    .limit(5)
 
   return selectProvider((data || []) as AIProviderConfig[])
 }

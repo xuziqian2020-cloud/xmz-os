@@ -27,7 +27,7 @@ import { describe, it } from "node:test"
 import { selectAudioProvider, selectTextProvider } from "./provider-selection"
 
 describe("provider selection", () => {
-  const funasr = { provider_name: "FunASR", provider_type: "custom", base_url: "http://127.0.0.1:8000/v1", api_key: "local", default_model: "sensevoice", is_enabled: true }
+  const funasr = { provider_name: "FunASR", provider_type: "custom", base_url: "http://127.0.0.1:8001/v1", api_key: "local", default_model: "sensevoice", is_enabled: true }
   const ollama = { provider_name: "Ollama", provider_type: "custom", base_url: "http://127.0.0.1:11434/v1", api_key: "ollama", default_model: "qwen3:4b", is_enabled: true }
 
   it("selects FunASR only for audio transcription", () => {
@@ -58,7 +58,7 @@ export function isConfiguredProvider(provider: AIProviderConfig): boolean {
 export function isAudioProvider(provider: AIProviderConfig): boolean {
   const baseUrl = String(provider.base_url || "").replace(/\/+$/, "").toLowerCase()
   const model = String(provider.default_model || "").toLowerCase()
-  return baseUrl === "http://127.0.0.1:8000/v1" && model === "sensevoice"
+  return baseUrl === "http://127.0.0.1:8001/v1" && model === "sensevoice"
 }
 
 export function selectAudioProvider(providers: AIProviderConfig[]): AIProviderConfig | null {
@@ -94,11 +94,11 @@ git commit -m "feat: separate audio and chat providers"
 
 - [ ] **Step 1: 为本地预设写出可测试的纯函数**
 
-在 `src/lib/ai/provider-selection.test.ts` 添加断言，说明 `http://127.0.0.1:8000/v1` + `sensevoice` 为音频供应商、`http://127.0.0.1:11434/v1` + `qwen3:4b` 为文本供应商。
+在 `src/lib/ai/provider-selection.test.ts` 添加断言，说明 `http://127.0.0.1:8001/v1` + `sensevoice` 为音频供应商、`http://127.0.0.1:11434/v1` + `qwen3:4b` 为文本供应商。
 
 ```ts
 it("treats only local SenseVoice as an audio provider", () => {
-  assert.equal(isAudioProvider({ base_url: "http://127.0.0.1:8000/v1", api_key: "local", default_model: "sensevoice", is_enabled: true }), true)
+  assert.equal(isAudioProvider({ base_url: "http://127.0.0.1:8001/v1", api_key: "local", default_model: "sensevoice", is_enabled: true }), true)
   assert.equal(isAudioProvider({ base_url: "http://127.0.0.1:11434/v1", api_key: "ollama", default_model: "qwen3:4b", is_enabled: true }), false)
 })
 ```
@@ -114,7 +114,7 @@ Expected: FAIL，直到 `isAudioProvider` 仅匹配 FunASR 的地址与模型。
 将预设类型拆分为展示键和持久化类型，两个本地预设仍使用已有的 `custom` 类型，避免修改 `ai_providers` 表：
 
 ```ts
-{ key: "funasr", provider_type: "custom", label: "本地 FunASR", base_url: "http://127.0.0.1:8000/v1", default_model: "sensevoice", description: "本地会议音频转写与发言人区分" },
+{ key: "funasr", provider_type: "custom", label: "本地 FunASR", base_url: "http://127.0.0.1:8001/v1", default_model: "sensevoice", description: "本地会议音频转写与发言人区分" },
 { key: "ollama", provider_type: "custom", label: "本地 Ollama", base_url: "http://127.0.0.1:11434/v1", default_model: "qwen3:4b", description: "本地会议纪要模型" },
 ```
 
@@ -224,13 +224,13 @@ git commit -m "feat: support FunASR transcription responses"
 it("uses the supplied FunASR provider and returns speaker metadata", async () => {
   const originalFetch = globalThis.fetch
   globalThis.fetch = async (input) => {
-    assert.equal(String(input), "http://127.0.0.1:8000/v1/audio/transcriptions")
+    assert.equal(String(input), "http://127.0.0.1:8001/v1/audio/transcriptions")
     return new Response(JSON.stringify({ segments: [{ speaker: "SPK0", text: "开始会议" }] }), { status: 200 })
   }
   try {
     const form = new FormData()
     form.set("file", new File(["audio"], "meeting.webm", { type: "audio/webm" }))
-    form.set("provider", JSON.stringify({ base_url: "http://127.0.0.1:8000/v1", api_key: "local", default_model: "sensevoice", is_enabled: true }))
+    form.set("provider", JSON.stringify({ base_url: "http://127.0.0.1:8001/v1", api_key: "local", default_model: "sensevoice", is_enabled: true }))
     form.set("model", "sensevoice")
     form.set("diarize", "true")
     const response = await POST(new Request("http://localhost/api/tools/transcribe", { method: "POST", body: form }))
@@ -291,7 +291,7 @@ Expected: 虚拟环境建立在 E 盘，安装过程不占用项目依赖目录�
 
 - [ ] **Step 2: 写出服务健康检查的失败命令**
 
-Run: `Invoke-WebRequest http://127.0.0.1:8000/health -UseBasicParsing`
+Run: `Invoke-WebRequest http://127.0.0.1:8001/health -UseBasicParsing`
 
 Expected: 服务未启动时连接失败。
 
@@ -300,7 +300,7 @@ Expected: 服务未启动时连接失败。
 从 FunASR 官方 `examples/openai_api` 目录运行：
 
 ```powershell
-E:\Ollama\funasr-venv\Scripts\python.exe server.py --model sensevoice --device cpu --port 8000
+E:\Ollama\funasr-venv\Scripts\python.exe server.py --model sensevoice --device cpu --port 8001
 ```
 
 启动参数必须使用 `--device cpu`，因为目标机器没有 NVIDIA 独立显卡。
@@ -310,8 +310,8 @@ E:\Ollama\funasr-venv\Scripts\python.exe server.py --model sensevoice --device c
 Run:
 
 ```powershell
-Invoke-WebRequest http://127.0.0.1:8000/health -UseBasicParsing
-Invoke-WebRequest http://127.0.0.1:8000/v1/models -UseBasicParsing
+Invoke-WebRequest http://127.0.0.1:8001/health -UseBasicParsing
+Invoke-WebRequest http://127.0.0.1:8001/v1/models -UseBasicParsing
 ```
 
 Expected: 两个请求返回 HTTP 200。然后在会议页面录制短音频，确认文字、发言人提示、纪要和 Word 下载都成功。

@@ -33,7 +33,7 @@ describe("audio transcription", () => {
 
   it("recognizes SenseVoice as an audio transcription model", () => {
     assert.equal(supportsAudioTranscription({
-      base_url: "http://127.0.0.1:8000/api",
+      base_url: "http://127.0.0.1:8001/api",
       api_key: "local",
       default_model: "sensevoice",
     }), true)

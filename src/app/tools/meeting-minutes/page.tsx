@@ -1,7 +1,7 @@
 "use client"
 
 import { useRef, useState } from "react"
-import { selectBrowserAiProvider, selectBrowserAudioProvider } from "@/lib/ai/local-providers"
+import { selectBrowserAudioProvider, selectBrowserMeetingMinutesProvider } from "@/lib/ai/local-providers"
 
 export default function MeetingMinutesPage() {
   const [title, setTitle] = useState("会议纪要")
@@ -121,7 +121,7 @@ export default function MeetingMinutesPage() {
           title,
           attendees: parseAttendees(attendees),
           transcript,
-          provider: selectBrowserAiProvider(),
+          provider: selectBrowserMeetingMinutesProvider(),
         }),
       })
       const data = await res.json()

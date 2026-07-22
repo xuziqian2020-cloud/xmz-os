@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { buildChatRequest, extractChatAnswer } from "@/lib/ai/chat"
-import { parseProviderJson, resolveServerProvider } from "@/lib/ai/server-provider"
+import { resolveServerProvider } from "@/lib/ai/server-provider"
 import { buildMeetingMinutesHtml, buildMeetingMinutesPrompt } from "@/lib/tools/meeting-minutes"
 
 export const runtime = "nodejs"
@@ -13,8 +13,8 @@ export async function POST(request: Request) {
   const transcript = String(body.transcript || "").trim()
   if (!transcript) return NextResponse.json({ error: "请先完成会议转写" }, { status: 400 })
 
-  const provider = await resolveServerProvider(body.provider || null, "chat")
-  if (!provider) return NextResponse.json({ error: "请先在 AI 设置启用一个供应商" }, { status: 400 })
+  const provider = await resolveServerProvider(body.provider || null, "meeting_minutes")
+  if (!provider) return NextResponse.json({ error: "请先在 AI 设置启用本地 Ollama qwen3:4b" }, { status: 400 })
 
   const prompt = buildMeetingMinutesPrompt({ title, attendees, transcript })
   const spec = buildChatRequest(provider, [{ role: "user", content: prompt }], "请整理会议纪要。")

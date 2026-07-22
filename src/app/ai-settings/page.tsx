@@ -22,7 +22,7 @@ const PROVIDER_PRESETS: ProviderPreset[] = [
   { key: "qwen", provider_type: "qwen", label: "通义千问", base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1", default_model: "qwen-turbo", description: "阿里云兼容接口" },
   { key: "zhipu", provider_type: "zhipu", label: "智谱 GLM", base_url: "https://open.bigmodel.cn/api/paas/v4", default_model: "glm-4-flash", description: "智谱 AI 模型" },
   { key: "moonshot", provider_type: "moonshot", label: "Kimi", base_url: "https://api.moonshot.cn/v1", default_model: "moonshot-v1-8k", description: "月之暗面模型" },
-  { key: "funasr", provider_type: "custom", label: "本地 FunASR", base_url: "http://127.0.0.1:8000/v1", default_model: "sensevoice", description: "本地会议音频转写与发言人区分" },
+  { key: "funasr", provider_type: "custom", label: "本地 FunASR", base_url: "http://127.0.0.1:8001/v1", default_model: "sensevoice", description: "本地会议音频转写与发言人区分" },
   { key: "ollama", provider_type: "custom", label: "本地 Ollama", base_url: "http://127.0.0.1:11434/v1", default_model: "qwen3:4b", description: "本地会议纪要模型" },
   { key: "custom", provider_type: "custom", label: "自定义", base_url: "", default_model: "", description: "自填兼容地址" },
 ]
