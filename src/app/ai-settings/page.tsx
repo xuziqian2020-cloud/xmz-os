@@ -7,7 +7,8 @@ import { LOCAL_AI_PROVIDERS_KEY } from "@/lib/ai/local-providers"
 import { cn } from "@/lib/utils"
 
 type ProviderPreset = {
-  value: string
+  key: string
+  provider_type: string
   label: string
   base_url: string
   default_model: string
@@ -15,13 +16,15 @@ type ProviderPreset = {
 }
 
 const PROVIDER_PRESETS: ProviderPreset[] = [
-  { value: "openai", label: "OpenAI", base_url: "https://api.openai.com/v1", default_model: "gpt-4o-mini", description: "GPT 系列模型" },
-  { value: "deepseek", label: "DeepSeek", base_url: "https://api.deepseek.com/v1", default_model: "deepseek-chat", description: "高性价比模型" },
-  { value: "claude", label: "Claude", base_url: "https://api.anthropic.com/v1", default_model: "claude-sonnet-4-20250514", description: "Anthropic 模型" },
-  { value: "qwen", label: "通义千问", base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1", default_model: "qwen-turbo", description: "阿里云兼容接口" },
-  { value: "zhipu", label: "智谱 GLM", base_url: "https://open.bigmodel.cn/api/paas/v4", default_model: "glm-4-flash", description: "智谱 AI 模型" },
-  { value: "moonshot", label: "Kimi", base_url: "https://api.moonshot.cn/v1", default_model: "moonshot-v1-8k", description: "月之暗面模型" },
-  { value: "custom", label: "自定义", base_url: "", default_model: "", description: "自填兼容地址" },
+  { key: "openai", provider_type: "openai", label: "OpenAI", base_url: "https://api.openai.com/v1", default_model: "gpt-4o-mini", description: "GPT 系列模型" },
+  { key: "deepseek", provider_type: "deepseek", label: "DeepSeek", base_url: "https://api.deepseek.com/v1", default_model: "deepseek-chat", description: "高性价比模型" },
+  { key: "claude", provider_type: "claude", label: "Claude", base_url: "https://api.anthropic.com/v1", default_model: "claude-sonnet-4-20250514", description: "Anthropic 模型" },
+  { key: "qwen", provider_type: "qwen", label: "通义千问", base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1", default_model: "qwen-turbo", description: "阿里云兼容接口" },
+  { key: "zhipu", provider_type: "zhipu", label: "智谱 GLM", base_url: "https://open.bigmodel.cn/api/paas/v4", default_model: "glm-4-flash", description: "智谱 AI 模型" },
+  { key: "moonshot", provider_type: "moonshot", label: "Kimi", base_url: "https://api.moonshot.cn/v1", default_model: "moonshot-v1-8k", description: "月之暗面模型" },
+  { key: "funasr", provider_type: "custom", label: "本地 FunASR", base_url: "http://127.0.0.1:8000/v1", default_model: "sensevoice", description: "本地会议音频转写与发言人区分" },
+  { key: "ollama", provider_type: "custom", label: "本地 Ollama", base_url: "http://127.0.0.1:11434/v1", default_model: "qwen3:4b", description: "本地会议纪要模型" },
+  { key: "custom", provider_type: "custom", label: "自定义", base_url: "", default_model: "", description: "自填兼容地址" },
 ]
 
 const initialForm = {
@@ -58,11 +61,12 @@ export default function AISettingsPage() {
     }
   }
 
+  /** XMZADD 20260722 选中本地预设时保留数据库已有的 custom 类型 */
   function selectPreset(preset: ProviderPreset) {
     setForm({
       ...form,
-      provider_name: preset.value === "custom" ? "" : preset.label,
-      provider_type: preset.value,
+      provider_name: preset.key === "custom" ? "" : preset.label,
+      provider_type: preset.provider_type,
       base_url: preset.base_url,
       default_model: preset.default_model,
     })
@@ -133,28 +137,26 @@ export default function AISettingsPage() {
     setProviders((prev) => prev.filter((provider) => provider.id !== id))
   }
 
+  /** XMZADD 20260722 独立切换当前供应商，保障转写与纪要服务可同时启用 */
   async function toggleProviderEnabled(provider: any) {
     const nextEnabled = !provider.is_enabled
     const nextProviders = providers.map((item) => ({
       ...item,
-      is_enabled: item.id === provider.id ? nextEnabled : nextEnabled ? false : item.is_enabled,
+      is_enabled: item.id === provider.id ? nextEnabled : item.is_enabled,
     }))
     setProviders(nextProviders)
 
-    const localProviders = nextProviders.filter((item) => String(item.id).startsWith("local-"))
-    window.localStorage.setItem(LOCAL_AI_PROVIDERS_KEY, JSON.stringify(localProviders))
+    if (String(provider.id).startsWith("local-")) {
+      const localProviders = nextProviders.filter((item) => String(item.id).startsWith("local-"))
+      window.localStorage.setItem(LOCAL_AI_PROVIDERS_KEY, JSON.stringify(localProviders))
+      return
+    }
 
-    await Promise.all(
-      nextProviders
-        .filter((item) => !String(item.id).startsWith("local-"))
-        .map((item) =>
-          fetch(`/api/ai-providers/${item.id}`, {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ is_enabled: item.is_enabled }),
-          })
-        )
-    )
+    await fetch(`/api/ai-providers/${provider.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ is_enabled: nextEnabled }),
+    })
   }
 
   async function testProvider(provider: any) {
@@ -176,7 +178,7 @@ export default function AISettingsPage() {
     return <div className="flex min-h-[60vh] items-center justify-center text-base text-muted-foreground">正在加载 AI 设置...</div>
   }
 
-  const selectedPreset = PROVIDER_PRESETS.find((preset) => preset.value === form.provider_type)
+  const selectedPreset = PROVIDER_PRESETS.find((preset) => matchesPreset(preset, form))
 
   return (
     <div className="space-y-6">
@@ -193,12 +195,12 @@ export default function AISettingsPage() {
           <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-3">
             {PROVIDER_PRESETS.map((preset) => (
               <button
-                key={preset.value}
+                key={preset.key}
                 type="button"
                 onClick={() => selectPreset(preset)}
                 className={cn(
                   "rounded-lg border px-3 py-3 text-left transition-colors",
-                  form.provider_type === preset.value
+                  selectedPreset?.key === preset.key
                     ? "border-emerald-500 bg-emerald-50 text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-200"
                     : "border-border bg-background text-foreground hover:border-emerald-500/40"
                 )}
@@ -293,7 +295,7 @@ export default function AISettingsPage() {
           ) : (
             <div className="mt-4 space-y-3">
               {providers.map((provider) => {
-                const preset = PROVIDER_PRESETS.find((item) => item.value === provider.provider_type)
+                const preset = PROVIDER_PRESETS.find((item) => matchesPreset(item, provider))
                 return (
                   <div key={provider.id} className="rounded-lg border border-border bg-background p-4">
                     <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -372,6 +374,13 @@ function saveLocalProvider(provider: any) {
 function deleteLocalProvider(id: string) {
   const providers = readLocalProviders().filter((provider: any) => provider.id !== id)
   window.localStorage.setItem(LOCAL_AI_PROVIDERS_KEY, JSON.stringify(providers))
+}
+
+/** XMZADD 20260722 以类型、地址和模型共同定位预设，避免混淆多个 custom 服务 */
+function matchesPreset(preset: ProviderPreset, provider: { provider_type?: string; base_url?: string; default_model?: string }): boolean {
+  return preset.provider_type === provider.provider_type
+    && preset.base_url === provider.base_url
+    && preset.default_model === provider.default_model
 }
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
