@@ -97,9 +97,9 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     return (
       <div className="min-h-[100dvh] bg-background">
         <Sidebar />
-        <div className="min-h-[100dvh] pl-64">
+        <div className="min-h-[100dvh] md:pl-64">
           <Header />
-          <main className="min-h-[calc(100dvh-64px)] px-6 py-6">
+          <main className="min-h-[calc(100dvh-64px)] px-4 py-4 sm:px-6 sm:py-6">
             <div className="mx-auto w-full max-w-[1480px]">{children}</div>
           </main>
         </div>

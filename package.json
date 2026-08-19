@@ -7,6 +7,7 @@
     "node": ">=20 <23"
   },
   "scripts": {
+    "postinstall": "node scripts/copy-pyodide-assets.mjs",
     "dev": "next dev",
     "test": "node scripts/run-tests.mjs",
     "build": "next build",
@@ -41,6 +42,7 @@
     "next-themes": "^0.4.6",
     "pdf-parse": "^1.1.1",
     "pdfkit": "^0.19.1",
+    "pyodide": "0.26.4",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "tailwind-merge": "^2.6.0",

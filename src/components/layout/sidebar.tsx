@@ -4,7 +4,7 @@ import Link from "next/link"
 import { useEffect, useState } from "react"
 import { usePathname, useRouter } from "next/navigation"
 import { useTheme } from "next-themes"
-import { ChevronRight, LogOut, Moon, Sun } from "lucide-react"
+import { ChevronRight, LogOut, Menu, Moon, Sun, X } from "lucide-react"
 import { ADMIN_REMEMBER_FLAG } from "@/lib/auth/local-admin"
 import { createClient } from "@/lib/supabase/client"
 import { cn } from "@/lib/utils"
@@ -15,10 +15,15 @@ export function Sidebar() {
   const pathname = usePathname()
   const router = useRouter()
   const [adminMode, setAdminMode] = useState(false)
+  const [mobileOpen, setMobileOpen] = useState(false)
 
   useEffect(() => {
     setAdminMode(window.localStorage.getItem(ADMIN_REMEMBER_FLAG) === "1")
   }, [])
+
+  useEffect(() => {
+    setMobileOpen(false)
+  }, [pathname])
 
   async function handleLogout() {
     window.localStorage.removeItem(ADMIN_REMEMBER_FLAG)
@@ -35,8 +40,18 @@ export function Sidebar() {
   }
 
   return (
-    <aside className="fixed left-0 top-0 z-40 flex h-screen w-64 flex-col border-r border-border bg-background">
-      <div className="border-b border-border px-5 py-5">
+    <>
+      <button
+        type="button"
+        aria-label="打开导航"
+        onClick={() => setMobileOpen(true)}
+        className="fixed left-3 top-3 z-50 inline-flex h-9 w-9 items-center justify-center rounded-md border border-border bg-card text-muted-foreground shadow-sm md:hidden"
+      >
+        <Menu className="h-4 w-4" />
+      </button>
+      {mobileOpen && <button type="button" aria-label="关闭导航" onClick={() => setMobileOpen(false)} className="fixed inset-0 z-30 bg-black/30 md:hidden" />}
+      <aside className={cn("fixed left-0 top-0 z-40 flex h-screen w-64 flex-col border-r border-border bg-background transition-transform duration-200 md:translate-x-0", mobileOpen ? "translate-x-0" : "-translate-x-full")}>
+      <div className="relative border-b border-border px-5 py-5">
         <Link href="/dashboard" prefetch={false} className="group flex items-center gap-3">
           <div className="h-12 w-12 overflow-hidden rounded-full border border-border bg-card shadow-sm transition-transform group-active:scale-[0.98]">
             <img src="/images/xiaomei-avatar.png" alt="小美头像" className="h-full w-full object-cover" />
@@ -48,6 +63,14 @@ export function Sidebar() {
             </span>
           </span>
         </Link>
+        <button
+          type="button"
+          aria-label="关闭导航菜单"
+          onClick={() => setMobileOpen(false)}
+          className="absolute right-3 top-3 inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground hover:bg-secondary hover:text-foreground md:hidden"
+        >
+          <X className="h-4 w-4" />
+        </button>
       </div>
 
       <nav className="flex-1 overflow-y-auto px-3 py-4">
@@ -72,7 +95,8 @@ export function Sidebar() {
           </span>
         </button>
       </div>
-    </aside>
+      </aside>
+    </>
   )
 }
 
