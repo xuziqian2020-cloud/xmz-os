@@ -17,8 +17,17 @@ CREATE TABLE IF NOT EXISTS learning_progress (
 CREATE INDEX IF NOT EXISTS idx_learning_progress_user_content ON learning_progress(user_id, content_type, content_slug);
 CREATE INDEX IF NOT EXISTS idx_learning_progress_user_status ON learning_progress(user_id, status);
 
+GRANT SELECT, INSERT, UPDATE, DELETE ON learning_progress TO authenticated;
+
 ALTER TABLE learning_progress ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "用户只能访问自己的学习进度" ON learning_progress;
+DROP POLICY IF EXISTS "用户读取自己的学习进度" ON learning_progress;
+DROP POLICY IF EXISTS "用户新增自己的学习进度" ON learning_progress;
+DROP POLICY IF EXISTS "用户更新自己的学习进度" ON learning_progress;
+DROP POLICY IF EXISTS "用户删除自己的学习进度" ON learning_progress;
+DROP POLICY IF EXISTS "reviewer reads learning progress" ON learning_progress;
+DROP POLICY IF EXISTS "reviewer accepts graduation projects" ON learning_progress;
+DROP POLICY IF EXISTS "reviewer updates graduation projects" ON learning_progress;
 CREATE POLICY "用户读取自己的学习进度" ON learning_progress FOR SELECT
   USING (auth.uid() = user_id);
 CREATE POLICY "用户新增自己的学习进度" ON learning_progress FOR INSERT
@@ -49,6 +58,8 @@ CREATE TABLE IF NOT EXISTS learning_notes (
 
 CREATE INDEX IF NOT EXISTS idx_learning_notes_user_target ON learning_notes(user_id, target_type, target_slug);
 
+GRANT SELECT, INSERT, UPDATE, DELETE ON learning_notes TO authenticated;
+
 ALTER TABLE learning_notes ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "用户只能访问自己的学习笔记" ON learning_notes;
 CREATE POLICY "用户只能访问自己的学习笔记" ON learning_notes FOR ALL
@@ -66,6 +77,8 @@ CREATE TABLE IF NOT EXISTS learning_code_attempts (
 );
 
 CREATE INDEX IF NOT EXISTS idx_learning_code_attempts_user_content ON learning_code_attempts(user_id, content_type, content_slug, passed, created_at DESC);
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON learning_code_attempts TO authenticated;
 
 ALTER TABLE learning_code_attempts ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "用户只能访问自己的代码练习" ON learning_code_attempts;
@@ -87,8 +100,11 @@ CREATE TABLE IF NOT EXISTS learning_project_evidence (
 
 CREATE INDEX IF NOT EXISTS idx_learning_project_evidence_user_project ON learning_project_evidence(user_id, project_slug, created_at DESC);
 
+GRANT SELECT, INSERT, UPDATE, DELETE ON learning_project_evidence TO authenticated;
+
 ALTER TABLE learning_project_evidence ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "用户只能访问自己的项目证据" ON learning_project_evidence;
+DROP POLICY IF EXISTS "reviewer reads project evidence" ON learning_project_evidence;
 CREATE POLICY "用户只能访问自己的项目证据" ON learning_project_evidence FOR ALL
   USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 CREATE POLICY "reviewer reads project evidence" ON learning_project_evidence FOR SELECT
@@ -110,8 +126,12 @@ CREATE TABLE IF NOT EXISTS learning_project_reviews (
 
 CREATE INDEX IF NOT EXISTS idx_learning_project_reviews_user_project ON learning_project_reviews(user_id, project_slug, updated_at DESC);
 
+GRANT SELECT, INSERT, UPDATE, DELETE ON learning_project_reviews TO authenticated;
+
 ALTER TABLE learning_project_reviews ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "用户只能访问自己的项目评审" ON learning_project_reviews;
+DROP POLICY IF EXISTS "用户读取自己的项目评审" ON learning_project_reviews;
+DROP POLICY IF EXISTS "reviewer manages project reviews" ON learning_project_reviews;
 CREATE POLICY "用户读取自己的项目评审" ON learning_project_reviews FOR SELECT
   USING (auth.uid() = user_id);
 CREATE POLICY "reviewer manages project reviews" ON learning_project_reviews FOR ALL
