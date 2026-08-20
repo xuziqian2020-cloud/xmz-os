@@ -76,12 +76,14 @@ function loadPdfKit() {
 }
 
 function getChineseFontPath(): string {
+  const windowsFontNames = ["simhei.ttf", "simkai.ttf", "Noto Sans SC (TrueType).otf", "msyh.ttc"]
+  const windowsFontCandidates =
+    process.platform === "win32"
+      ? windowsFontNames.map((fontName) => path.win32.join(`C:${path.win32.sep}`, "Windows", "Fonts", fontName))
+      : []
   const candidates = [
-    "C:\\Windows\\Fonts\\simhei.ttf",
-    "C:\\Windows\\Fonts\\simkai.ttf",
+    ...windowsFontCandidates,
     path.join(process.cwd(), "public", "fonts", "NotoSansSC-Regular.otf"),
-    "C:\\Windows\\Fonts\\Noto Sans SC (TrueType).otf",
-    "C:\\Windows\\Fonts\\msyh.ttc",
   ]
 
   for (const candidate of candidates) {
