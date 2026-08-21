@@ -230,17 +230,21 @@ function generateBreadcrumbs(pathname: string, projects: ProjectLite[]): Breadcr
     "ai-settings": "AI 设置",
     reports: "报表总结",
     settings: "设置",
+    learning: "学习中心",
+    lessons: "课程",
+    practice: "实战",
+    notes: "学习笔记",
   }
 
-  let href = ""
+  let pathHref = ""
   for (let index = 0; index < segments.length; index += 1) {
     const seg = segments[index]
-    href += `/${seg}`
+    pathHref += `/${seg}`
     const isProjectId = segments[index - 1] === "projects"
     const project = isProjectId ? projects.find((item) => item.id === seg) : undefined
     crumbs.push({
       label: project?.name || labelMap[seg] || shortenId(seg),
-      href,
+      href: pathHref === "/learning/lessons" ? "/learning" : pathHref,
       current: false,
     })
   }

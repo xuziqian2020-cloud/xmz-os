@@ -27,6 +27,7 @@ tsconfig.tsbuildinfo
 deno.lock
 *.traineddata
 netlify-*.png
+public/learning/pyodide/
 
 # OS and editor files
 .DS_Store
